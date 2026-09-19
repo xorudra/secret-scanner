@@ -22,6 +22,12 @@
 cd "C:\Users\<YourName>\Downloads\secret-scanner"
 ```
 
+### Note : If PowerShell prevents .\setup_project.ps1 from running, Open PowerShell and run: 
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
 ### 2. Setup Environment
 ```powershell
 .\setup_project.ps1
