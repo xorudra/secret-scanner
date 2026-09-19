@@ -18,5 +18,8 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["secret_scanner*"]
 
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.html", "*.css", "*.js"]
+
 [project.scripts]
 secret-scanner = "secret_scanner.__main__:main"
