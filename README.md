@@ -10,15 +10,15 @@
 
 ## 📑 Table of Contents
 - [Features](https://github.com/xorudra/secret-scanner#-features)
-- [How Scanning Works](#-how-scanning-works)
-- [Configuration](#-configuration)
-- [Quick Start](#-quick-start)
-- [Using the Dashboard](#-using-the-dashboard)
+- [How Scanning Works](https://github.com/xorudra/secret-scanner#-how-scanning-works)
+- [Configuration](https://github.com/xorudra/secret-scanner#%EF%B8%8F-configuration)
+- [Quick Start](https://github.com/xorudra/secret-scanner#%EF%B8%8F-quick-start)
+- [Using the Dashboard](https://github.com/xorudra/secret-scanner#%EF%B8%8F-using-the-dashboard)
 - [Project Structure](https://github.com/xorudra/secret-scanner#-project-structure)
 - [Pre‑commit Hook (optional)](https://github.com/xorudra/secret-scanner#-precommit-hook-optional)
-- [Reporting & Export](https://github.com/xorudra/secret-scanner#-reporting--export)
-- [Contributing](https://github.com/xorudra/secret-scanner#-contributing)
-- [License](https://github.com/xorudra/secret-scanner#8%EF%B8%8F%E2%83%A3-license--keep-the-standard-mit-notice-if-you-havent-added-it-yet)
+- [Reporting & Export](https://github.com/xorudra/secret-scanner#-reporting--export--what-formats-are-available)
+- [Contributing](https://github.com/xorudra/secret-scanner#-contributing--short-guide)
+- [License](https://github.com/xorudra/secret-scanner#-license--keep-the-standard-mit-notice-if-you-havent-added-it-yet)
 
 ---
 
