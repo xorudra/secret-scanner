@@ -9,15 +9,16 @@
 
 
 ## 📑 Table of Contents
-- [Features](#-features)
-- [Quick Start](#-quick-start)
-- [Running the Dashboard](#-running-the-dashboard)
+- [Features](https://github.com/xorudra/secret-scanner#-features)
 - [How Scanning Works](#-how-scanning-works)
 - [Configuration](#-configuration)
-- [Reporting & Export](#-reporting--export)
-- [Pre‑commit Hook (optional)](#-pre‑commit-hook-optional)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Quick Start](#-quick-start)
+- [Using the Dashboard](#-using-the-dashboard)
+- [Project Structure](https://github.com/xorudra/secret-scanner#-project-structure)
+- [Pre‑commit Hook (optional)](https://github.com/xorudra/secret-scanner#-precommit-hook-optional)
+- [Reporting & Export](https://github.com/xorudra/secret-scanner#-reporting--export)
+- [Contributing](https://github.com/xorudra/secret-scanner#-contributing)
+- [License](https://github.com/xorudra/secret-scanner#8%EF%B8%8F%E2%83%A3-license--keep-the-standard-mit-notice-if-you-havent-added-it-yet)
 
 ---
 
@@ -160,9 +161,7 @@ To **uninstall** the hook later:
 python -m secret_scanner --uninstall-hook
 ```
 
-### 5️⃣ “Reporting & Export” – what formats are available
-
-## 📊 Reporting & Export
+### 📊 “Reporting & Export” – what formats are available
 
 After a scan finishes you can download the results in any of the following formats:
 
@@ -176,10 +175,7 @@ After a scan finishes you can download the results in any of the following forma
 All reports contain the same fields shown in the dashboard (file, line, rule, severity, risk score, masked value, and optional Git metadata).  
 
 
-### 7️⃣ “Contributing” – short guide
-
-markdown
-## 🤝 Contributing
+### 🤝 “Contributing” – short guide
 
 Contributions are welcome! Here’s how to get started:
 
