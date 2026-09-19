@@ -1,5 +1,6 @@
 """secret_scanner.api.app
-FastAPI application exposing the secret scanning engine via REST API and Web GUI.
+FastAPI application exposing the secret scanning engine via REST API and a
+premium, feature-rich Web GUI dashboard.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from typing import Any, List, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from secret_scanner.core.engine import scan_path, DetectionEngine, REGEX_PATTERNS
 from secret_scanner.core.rules import load_rules
@@ -22,7 +23,7 @@ from secret_scanner.git_scanner import scan_repository
 
 app = FastAPI(
     title="SecretScanner Platform",
-    version="0.1.0",
+    version="2.1.0",
     description="Privacy-first secret & credential leak detection platform",
 )
 
@@ -37,6 +38,15 @@ class ScanRequest(BaseModel):
 class ScanTextRequest(BaseModel):
     text: str
     filename: str = "<inline>"
+
+    @field_validator("text")
+    @classmethod
+    def check_text_size(cls, v: str) -> str:
+        # Limit to 2 MB to protect the async event loop from huge pastes
+        max_bytes = 2 * 1024 * 1024
+        if len(v.encode("utf-8", errors="ignore")) > max_bytes:
+            raise ValueError("Text payload exceeds the 2 MB limit. Please use the directory scan for large files.")
+        return v
 
 
 class ScanGitRequest(BaseModel):
@@ -60,7 +70,7 @@ class ReportExportRequest(BaseModel):
 @app.get("/health")
 async def health():
     """Health-check endpoint."""
-    return {"status": "ok", "service": "secret-scanner", "version": "0.1.0"}
+    return {"status": "ok", "service": "secret-scanner", "version": "2.1.0"}
 
 
 @app.get("/rules")
@@ -137,7 +147,7 @@ async def export_sarif_report(req: ReportExportRequest):
 
 
 # ---------------------------------------------------------------------------
-# Web Dashboard GUI
+# Web Dashboard GUI  (v2.1 — Fixed + Enhanced)
 # ---------------------------------------------------------------------------
 HTML_DASHBOARD = r"""<!DOCTYPE html>
 <html lang="en">
@@ -145,684 +155,1656 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SecretScanner — Privacy-First Credential Leak Detection</title>
+  <meta name="description" content="SecretScanner: detect API keys, tokens, and hardcoded secrets in your codebase with a beautiful, privacy-first dashboard.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
+    /* ── Design Tokens ── */
     :root {
-      --bg-dark: #090d16;
-      --bg-card: rgba(18, 26, 43, 0.75);
-      --bg-card-border: rgba(255, 255, 255, 0.08);
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --accent-cyan: #06b6d4;
-      --danger: #ef4444;
-      --danger-crit: #dc2626;
-      --warning: #f59e0b;
-      --success: #10b981;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
+      --bg:          #07091a;
+      --bg-2:        #0d1126;
+      --surface:     rgba(255,255,255,0.04);
+      --surface-hov: rgba(255,255,255,0.08);
+      --border:      rgba(255,255,255,0.08);
+      --border-focus:rgba(99,102,241,0.7);
+
+      --indigo:  #6366f1;
+      --indigo-d:#4f46e5;
+      --cyan:    #22d3ee;
+      --violet:  #a855f7;
+
+      --crit:   #ef4444;
+      --high:   #f97316;
+      --med:    #eab308;
+      --low:    #3b82f6;
+      --safe:   #22c55e;
+
+      --txt:    #f1f5f9;
+      --muted:  #64748b;
+      --subtle: #94a3b8;
+
+      --radius: 14px;
+      --shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
 
     body {
-      background: var(--bg-dark);
-      color: var(--text-main);
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--txt);
       min-height: 100vh;
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
-      background-attachment: fixed;
+      overflow-x: hidden;
     }
 
-    .header {
+    /* ── Animated background ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 10%, rgba(99,102,241,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(168,85,247,.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(34,211,238,.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      padding: 1.25rem 2rem;
-      border-bottom: 1px solid var(--bg-card-border);
-      backdrop-filter: blur(12px);
-      background: rgba(9, 13, 22, 0.85);
-      position: sticky; top: 0; z-index: 100;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-weight: 700;
-      font-size: 1.35rem;
-      letter-spacing: -0.02em;
-    }
-
-    .brand-icon {
-      width: 40px; height: 40px;
-      background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.9rem;
-      border-radius: 9999px;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: var(--success);
-      font-size: 0.85rem; font-weight: 500;
-    }
-
-    .status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 10px var(--success);
-    }
-
-    .container {
-      max-width: 1250px;
-      margin: 2rem auto;
-      padding: 0 1.5rem;
-    }
-
-    /* Tabs */
-    .tabs {
-      display: flex;
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--bg-card-border);
-      padding-bottom: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 0.65rem 1.25rem;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex; align-items: center; gap: 0.5rem;
-      transition: all 0.2s ease;
-    }
-
-    .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
-
-    .tab-btn.active {
-      color: white;
-      background: var(--primary);
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    }
-
-    /* Card Panels */
-    .panel {
-      background: var(--bg-card);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 16px;
-      padding: 1.75rem;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      margin-bottom: 2rem;
-    }
-
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    .input-group {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 1rem;
-    }
-
-    input[type="text"], textarea {
-      flex: 1;
-      background: rgba(9, 13, 22, 0.6);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 10px;
-      padding: 0.85rem 1.1rem;
-      color: var(--text-main);
-      font-size: 0.95rem;
-      outline: none;
-      transition: border 0.2s;
-    }
-
-    input[type="text"]:focus, textarea:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-    }
-
-    textarea {
-      width: 100%;
-      height: 140px;
-      font-family: 'Fira Code', monospace;
-      font-size: 0.9rem;
-      resize: vertical;
-    }
-
-    .btn {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 0.85rem 1.6rem;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      transition: all 0.2s ease;
-    }
-
-    .btn:hover {
-      background: var(--primary-hover);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-main);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.15);
-      transform: none; box-shadow: none;
-    }
-
-    /* Stats Grid */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1.25rem;
-      margin-bottom: 2rem;
-    }
-
-    .stat-card {
-      background: var(--bg-card);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 14px;
-      padding: 1.25rem;
-      display: flex;
-      align-items: center;
+      padding: 0 2rem;
+      height: 64px;
+      background: rgba(7,9,26,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 200;
       gap: 1rem;
     }
 
-    .stat-icon {
-      width: 46px; height: 46px;
-      border-radius: 12px;
+    .brand {
+      display: flex; align-items: center; gap: .75rem;
+      font-weight: 800; font-size: 1.15rem; letter-spacing: -.02em;
+      text-decoration: none; color: inherit;
+      flex-shrink: 0;
+    }
+
+    .brand-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--indigo), var(--cyan));
+      border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.2rem;
+      font-size: 1rem;
+      box-shadow: 0 0 20px rgba(99,102,241,.5);
     }
 
-    .stat-val { font-size: 1.6rem; font-weight: 700; }
-    .stat-lbl { font-size: 0.85rem; color: var(--text-muted); }
+    .brand-name { background: linear-gradient(90deg,#fff,#a5b4fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 
-    /* Results Table */
-    .table-container {
-      overflow-x: auto;
-      border-radius: 12px;
-      border: 1px solid var(--bg-card-border);
+    .nav-right { display: flex; align-items: center; gap: .75rem; }
+
+    /* ── Hamburger (mobile only) ── */
+    .hamburger {
+      display: none;
+      background: none; border: 1px solid var(--border);
+      color: var(--subtle); border-radius: 7px;
+      padding: .4rem .6rem; cursor: pointer;
+      font-size: .95rem; transition: all .15s;
+    }
+    .hamburger:hover { background: var(--surface-hov); color: var(--txt); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .3rem .8rem; border-radius: 9999px;
+      font-size: .78rem; font-weight: 600;
+      border: 1px solid;
+    }
+    .pill-green  { background: rgba(34,197,94,.1);  border-color: rgba(34,197,94,.3);  color: var(--safe); }
+    .pill-violet { background: rgba(168,85,247,.1); border-color: rgba(168,85,247,.3); color: var(--violet); cursor: pointer; transition: background .2s; }
+    .pill-violet:hover { background: rgba(168,85,247,.2); }
+
+    .pulse {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--safe);
+      box-shadow: 0 0 8px var(--safe);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 64px); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      display: flex; flex-direction: column; gap: .25rem;
+      background: rgba(13,17,38,.5);
+      position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
+      transition: transform .25s ease;
     }
 
-    table {
+    .sidebar-label {
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--muted);
+      padding: .75rem .75rem .35rem;
+    }
+
+    .nav-item {
+      display: flex; align-items: center; gap: .65rem;
+      padding: .6rem .75rem; border-radius: 9px;
+      font-size: .88rem; font-weight: 500;
+      color: var(--subtle); cursor: pointer;
+      transition: all .15s;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover  { background: var(--surface-hov); color: var(--txt); }
+    .nav-item.active { background: rgba(99,102,241,.15); color: white; border: 1px solid rgba(99,102,241,.25); }
+    .nav-item i { width: 16px; text-align: center; font-size: .9rem; }
+
+    .sidebar-sep { height: 1px; background: var(--border); margin: .75rem .5rem; }
+
+    /* ── Main area ── */
+    .main { padding: 2rem; overflow-y: auto; }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+    /* ── Section heading ── */
+    .section-head { margin-bottom: 1.5rem; }
+    .section-head h1 { font-size: 1.5rem; font-weight: 800; }
+    .section-head p  { color: var(--subtle); font-size: .9rem; margin-top: .3rem; }
+
+    /* ── Cards / Panels ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+    }
+    .card + .card { margin-top: 1.25rem; }
+
+    .card-title {
+      font-size: .85rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--subtle); margin-bottom: 1rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+
+    /* ── Form elements ── */
+    .field { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
+    .field label { font-size: .82rem; font-weight: 600; color: var(--subtle); }
+
+    input[type=text], input[type=number], textarea, select {
+      background: rgba(7,9,26,.7);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: .75rem 1rem;
+      color: var(--txt);
+      font-family: inherit;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
       width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.88rem;
     }
-
-    th {
-      background: rgba(9, 13, 22, 0.7);
-      padding: 0.9rem 1.2rem;
-      color: var(--text-muted);
-      font-weight: 600;
-      border-bottom: 1px solid var(--bg-card-border);
+    input[type=text]:focus, input[type=number]:focus,
+    textarea:focus, select:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.15);
     }
-
-    td {
-      padding: 0.9rem 1.2rem;
-      border-bottom: 1px solid var(--bg-card-border);
-      background: rgba(18, 26, 43, 0.4);
-    }
-
-    tr:hover td { background: rgba(99, 102, 241, 0.05); }
-
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.65rem;
-      border-radius: 9999px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .badge-critical { background: rgba(220, 38, 38, 0.25); color: #f87171; border: 1px solid #dc2626; }
-    .badge-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
-    .badge-medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
-    .badge-low { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
-
-    .code-text {
+    textarea {
       font-family: 'Fira Code', monospace;
-      color: var(--accent-cyan);
-      background: rgba(0, 0, 0, 0.3);
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.85rem;
+      font-size: .85rem;
+      resize: vertical;
+      min-height: 160px;
     }
 
-    .empty-state {
+    .input-row { display: flex; gap: .75rem; align-items: flex-end; }
+    .input-row > * { flex: 1; }
+    .input-row > .btn { flex: 0 0 auto; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+      padding: .7rem 1.4rem; border-radius: 9px;
+      font-family: inherit; font-size: .88rem; font-weight: 600;
+      cursor: pointer; border: none; transition: all .2s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--indigo), var(--indigo-d));
+      color: white;
+      box-shadow: 0 4px 14px rgba(99,102,241,.35);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.5); }
+    .btn-primary:active { transform: none; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+
+    .btn-ghost {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--subtle);
+    }
+    .btn-ghost:hover { background: var(--surface-hov); color: var(--txt); }
+
+    .btn-sm { padding: .4rem .85rem; font-size: .8rem; border-radius: 7px; }
+    .btn-danger { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); color: var(--crit); }
+    .btn-danger:hover { background: rgba(239,68,68,.25); }
+
+    /* ── Drag-drop zone ── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
       text-align: center;
-      padding: 3rem 1rem;
-      color: var(--text-muted);
-    }
-
-    .empty-icon {
-      font-size: 2.5rem;
+      transition: all .2s;
+      cursor: pointer;
       margin-bottom: 1rem;
-      color: var(--primary);
+    }
+    .drop-zone.dragover { border-color: var(--indigo); background: rgba(99,102,241,.07); }
+    .drop-zone.has-file { border-color: var(--safe); background: rgba(34,197,94,.05); }
+    .drop-zone i { font-size: 2rem; color: var(--indigo); margin-bottom: .75rem; display: block; }
+    .drop-zone p { color: var(--subtle); font-size: .88rem; }
+    .drop-zone strong { color: var(--txt); }
+    .drop-zone .file-loaded-name {
+      margin-top: .5rem; font-family: 'Fira Code', monospace;
+      font-size: .82rem; color: var(--safe);
     }
 
-    .actions-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      transition: transform .2s, border-color .2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.14); }
+
+    .stat-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .5rem; }
+    .stat-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat-sub   { font-size: .78rem; color: var(--subtle); margin-top: .3rem; }
+
+    .stat-crit { color: var(--crit); }
+    .stat-high { color: var(--high); }
+    .stat-med  { color: var(--med); }
+    .stat-safe { color: var(--safe); }
+    .stat-blue { color: #60a5fa; }
+
+    /* ── Donut chart ── */
+    .chart-row { display: grid; grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: center; }
+    .chart-legend { display: flex; flex-direction: column; gap: .6rem; }
+    .legend-item { display: flex; align-items: center; gap: .6rem; font-size: .85rem; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
       margin-bottom: 1rem;
-      flex-wrap: wrap;
-      gap: 0.75rem;
+    }
+    .toolbar-left  { display: flex; gap: .6rem; flex: 1; min-width: 0; flex-wrap: wrap; }
+    .toolbar-right { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+    .search-box {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .45rem .85rem;
+      flex: 1; min-width: 180px;
+    }
+    .search-box input {
+      background: none; border: none; outline: none;
+      color: var(--txt); font-size: .88rem; width: 100%; padding: 0;
+      font-family: inherit;
+    }
+    .search-box i { color: var(--muted); font-size: .85rem; flex-shrink: 0; }
+
+    select.filter-sel {
+      padding: .45rem .75rem; border-radius: 8px;
+      font-size: .82rem; width: auto; cursor: pointer;
     }
 
-    .loading-spinner {
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    thead th {
+      background: rgba(7,9,26,.8);
+      padding: .75rem 1rem;
+      text-align: left; font-weight: 700; font-size: .78rem;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+      transition: color .15s;
+    }
+    thead th:hover { color: var(--txt); }
+    thead th .sort-icon { margin-left: .3rem; opacity: .5; }
+    thead th.sorted .sort-icon { opacity: 1; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .12s;
+      cursor: default;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover td { background: rgba(99,102,241,.04); }
+    tbody td { padding: .75rem 1rem; vertical-align: middle; }
+
+    .expandable-row { display: none; }
+    .expandable-row.open { display: table-row; }
+    .expand-cell {
+      background: rgba(7,9,26,.6) !important;
+      padding: 1rem 1.5rem !important;
+      font-family: 'Fira Code', monospace;
+      font-size: .82rem;
+      color: var(--subtle);
+      border-top: 1px dashed var(--border);
+    }
+    .expand-actions {
+      display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap;
+    }
+
+    .row-clickable { cursor: pointer; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .25rem .6rem; border-radius: 6px;
+      font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .badge-critical { background: rgba(239,68,68,.15);   color: var(--crit); border: 1px solid rgba(239,68,68,.3); }
+    .badge-high     { background: rgba(249,115,22,.15);  color: var(--high); border: 1px solid rgba(249,115,22,.3); }
+    .badge-medium   { background: rgba(234,179,8,.12);   color: var(--med);  border: 1px solid rgba(234,179,8,.3); }
+    .badge-low      { background: rgba(59,130,246,.12);  color: var(--low);  border: 1px solid rgba(59,130,246,.3); }
+
+    .code-chip {
+      font-family: 'Fira Code', monospace;
+      background: rgba(0,0,0,.35);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: .18rem .5rem;
+      font-size: .8rem;
+      color: var(--cyan);
+      word-break: break-all;
+    }
+
+    .file-chip {
+      font-family: 'Fira Code', monospace;
+      font-size: .78rem;
+      color: #a5b4fc;
+      word-break: break-all;
+      max-width: 220px;
       display: inline-block;
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 0.8s linear infinite;
-      margin-right: 0.5rem;
     }
 
+    /* ── Score bar ── */
+    .score-bar { display: flex; align-items: center; gap: .5rem; }
+    .bar-track {
+      height: 5px; border-radius: 3px;
+      background: rgba(255,255,255,.08);
+      width: 60px; overflow: hidden;
+    }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex; align-items: center; gap: .5rem;
+      justify-content: center; padding: .75rem 1rem;
+      border-top: 1px solid var(--border);
+      background: rgba(7,9,26,.4);
+    }
+    .page-btn {
+      padding: .3rem .7rem; border-radius: 6px; font-size: .8rem; font-weight: 600;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--subtle); cursor: pointer; transition: all .15s;
+    }
+    .page-btn:hover { background: var(--surface-hov); color: var(--txt); }
+    .page-btn.active { background: rgba(99,102,241,.2); border-color: rgba(99,102,241,.4); color: white; }
+    .page-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .page-info { font-size: .8rem; color: var(--muted); padding: 0 .25rem; }
+
+    /* ── Empty / Loading state ── */
+    .empty-state {
+      text-align: center; padding: 4rem 1rem;
+      display: flex; flex-direction: column; align-items: center; gap: .75rem;
+    }
+    .empty-state .icon { font-size: 3rem; color: var(--indigo); opacity: .6; }
+    .empty-state h3   { font-size: 1.05rem; font-weight: 600; }
+    .empty-state p    { font-size: .88rem; color: var(--subtle); }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.25);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast notifications ── */
+    #toast-container {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      z-index: 9999; display: flex; flex-direction: column; gap: .6rem;
+    }
+    .toast {
+      display: flex; align-items: center; gap: .75rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .85rem 1.2rem;
+      font-size: .88rem;
+      box-shadow: var(--shadow);
+      animation: toastIn .3s ease;
+      min-width: 260px; max-width: 380px;
+    }
+    .toast.toast-success { border-left: 3px solid var(--safe); }
+    .toast.toast-error   { border-left: 3px solid var(--crit); }
+    .toast.toast-info    { border-left: 3px solid var(--indigo); }
+    .toast.toast-warn    { border-left: 3px solid var(--med); }
+    @keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+    /* ── Progress bar ── */
+    .scan-progress { display: none; margin-top: 1rem; }
+    .scan-progress.visible { display: block; }
+    .progress-label { font-size: .82rem; color: var(--subtle); margin-bottom: .4rem; display: flex; justify-content: space-between; }
+    .progress-track { height: 4px; background: rgba(255,255,255,.08); border-radius: 2px; overflow: hidden; }
+    .progress-fill  {
+      height: 100%;
+      background: linear-gradient(90deg, var(--indigo), var(--cyan), var(--indigo));
+      background-size: 200% auto;
+      border-radius: 2px;
+      animation: shimmer 1.5s linear infinite;
+      width: 100%;
+    }
+    @keyframes shimmer { to { background-position: -200% center; } }
+
+    /* ── Rules page ── */
+    .rules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .rule-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .rule-card:hover { border-color: rgba(99,102,241,.35); transform: translateY(-2px); }
+    .rule-card-head  { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; margin-bottom: .5rem; }
+    .rule-card-name  { font-weight: 700; font-size: .9rem; }
+    .rule-card-desc  { font-size: .8rem; color: var(--subtle); margin-bottom: .65rem; line-height: 1.5; }
+    .rule-pattern    { font-family: 'Fira Code', monospace; font-size: .72rem; color: var(--cyan); background: rgba(0,0,0,.3); border-radius: 6px; padding: .4rem .6rem; word-break: break-all; border: 1px solid var(--border); }
+
+    /* ── History page ── */
+    .history-list { display: flex; flex-direction: column; gap: .75rem; }
+    .history-item {
+      display: flex; align-items: center; gap: 1rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: .85rem 1.1rem;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .history-item:hover { background: var(--surface-hov); border-color: rgba(99,102,241,.25); }
+    .history-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .95rem; }
+    .h-path  { font-size: .88rem; font-weight: 600; }
+    .h-meta  { font-size: .76rem; color: var(--muted); margin-top: .15rem; }
+    .h-count { margin-left: auto; }
+
+    /* ── Keyboard hint ── */
+    .kbd {
+      display: inline-flex; align-items: center; gap: .2rem;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 4px; padding: .1rem .4rem;
+      font-family: 'Fira Code', monospace; font-size: .7rem; color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed; left: 0; top: 64px;
+        width: 240px; height: calc(100vh - 64px);
+        z-index: 150; transform: translateX(-100%);
+      }
+      .sidebar.open { transform: translateX(0); box-shadow: 4px 0 32px rgba(0,0,0,.6); }
+      .hamburger { display: flex; }
+      .chart-row { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+      .main { padding: 1rem; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <header class="header">
-    <div class="brand">
-      <div class="brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
-      <span>SecretScanner</span>
-    </div>
-    <div style="display: flex; gap: 1rem; align-items: center;">
-      <div class="status-badge"><span class="status-dot"></span> Engine Online</div>
-      <a href="/docs" target="_blank" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-        <i class="fa-solid fa-code"></i> API Docs
-      </a>
-    </div>
-  </header>
+<!-- ── Navbar ── -->
+<nav class="navbar">
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <a class="brand" href="#">
+      <div class="brand-logo"><i class="fa-solid fa-shield-halved"></i></div>
+      <span class="brand-name">SecretScanner</span>
+    </a>
+  </div>
+  <div class="nav-right">
+    <span class="pill pill-green"><span class="pulse"></span> Engine Online</span>
+    <a href="/docs" target="_blank" class="pill pill-violet"><i class="fa-solid fa-code"></i> API Docs</a>
+  </div>
+</nav>
 
-  <!-- Container -->
-  <main class="container">
+<!-- ── Layout ── -->
+<div class="layout">
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('path', event)"><i class="fa-solid fa-folder-open"></i> Directory / File Scanner</button>
-      <button class="tab-btn" onclick="switchTab('text', event)"><i class="fa-solid fa-file-code"></i> Code Snippet Scanner</button>
-      <button class="tab-btn" onclick="switchTab('git', event)"><i class="fa-brands fa-git-alt"></i> Git Repo Scanner</button>
-    </div>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-label">Scan</div>
+    <button class="nav-item active" id="nav-path"    onclick="goPage('path')">
+      <i class="fa-solid fa-folder-open"></i> Directory / File
+    </button>
+    <button class="nav-item" id="nav-text"    onclick="goPage('text')">
+      <i class="fa-solid fa-file-code"></i> Code Snippet
+    </button>
+    <button class="nav-item" id="nav-git"     onclick="goPage('git')">
+      <i class="fa-brands fa-git-alt"></i> Git History
+    </button>
 
-    <!-- Tab 1: Path Scanner -->
-    <div id="tab-path" class="tab-content active panel">
-      <h2>Scan Directory or File</h2>
-      <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem;">
-        Recursively scans local filesystem targets using high-entropy calculation and YAML-configured regex patterns.
-      </p>
-      <div class="input-group">
-        <input type="text" id="target-path" placeholder="e.g. C:\Users\RUDRA SINGH\OneDrive\Desktop\Project">
-        <button class="btn" id="btn-path" onclick="scanPath()"><i class="fa-solid fa-magnifying-glass"></i> Scan Target</button>
+    <div class="sidebar-sep"></div>
+    <div class="sidebar-label">Analyse</div>
+    <button class="nav-item" id="nav-results" onclick="goPage('results')">
+      <i class="fa-solid fa-table-list"></i> Results
+      <span id="sidebar-count" style="margin-left:auto;font-size:.72rem;background:rgba(99,102,241,.25);padding:.1rem .45rem;border-radius:5px;display:none;"></span>
+    </button>
+    <button class="nav-item" id="nav-overview" onclick="goPage('overview')">
+      <i class="fa-solid fa-chart-pie"></i> Overview
+    </button>
+    <button class="nav-item" id="nav-history" onclick="goPage('history')">
+      <i class="fa-solid fa-clock-rotate-left"></i> History
+    </button>
+
+    <div class="sidebar-sep"></div>
+    <div class="sidebar-label">Config</div>
+    <button class="nav-item" id="nav-rules"   onclick="goPage('rules')">
+      <i class="fa-solid fa-sliders"></i> Detection Rules
+    </button>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main" id="main-content">
+
+    <!-- ╔══════════════════════════════╗ -->
+    <!-- ║  Page: Directory / File Scan ║ -->
+    <!-- ╚══════════════════════════════╝ -->
+    <section class="page active" id="page-path">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-folder-open" style="color:var(--indigo)"></i> Directory / File Scanner</h1>
+        <p>Recursively scans a local path using Shannon entropy analysis and YAML-configured regex rules. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
       </div>
-    </div>
 
-    <!-- Tab 2: Text Snippet Scanner -->
-    <div id="tab-text" class="tab-content panel">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>Scan Text / Code Snippet</h2>
-        <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="loadSampleText()">
-          Load Sample Leak
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-crosshairs"></i> Scan Target</div>
+        <div class="field">
+          <label>Path to scan</label>
+          <div class="input-row">
+            <input type="text" id="path-input" placeholder="e.g.  C:\Users\me\Desktop\my-project  or  ."
+                   onkeydown="if(event.ctrlKey&&event.key==='Enter')runPathScan()">
+            <button class="btn btn-primary" id="btn-path" onclick="runPathScan()">
+              <i class="fa-solid fa-magnifying-glass"></i> Scan
+            </button>
+          </div>
+        </div>
+        <div class="scan-progress" id="prog-path">
+          <div class="progress-label"><span>Scanning files…</span><span id="prog-path-txt">please wait</span></div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:.75rem;">
+          <i class="fa-solid fa-circle-info"></i>
+          Ignored paths from <code>.secretscannerignore</code> are automatically skipped.
+          Binary files and files &gt;2 000-char lines are excluded.
+        </p>
+      </div>
+
+      <div class="card" style="margin-top:1.25rem;">
+        <div class="card-title"><i class="fa-solid fa-lightbulb"></i> Quick Tips</div>
+        <ul style="color:var(--subtle);font-size:.85rem;line-height:2;padding-left:1.2rem;">
+          <li>Enter <code>.</code> to scan the current working directory.</li>
+          <li>Results appear on the <strong>Results</strong> and <strong>Overview</strong> pages instantly.</li>
+          <li>Use the <strong>Git History</strong> scanner to audit past commits too.</li>
+          <li>Hold <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to trigger a scan from any input field.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ╔═════════════════════╗ -->
+    <!-- ║  Page: Code Snippet ║ -->
+    <!-- ╚═════════════════════╝ -->
+    <section class="page" id="page-text">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-file-code" style="color:var(--cyan)"></i> Code Snippet Scanner</h1>
+        <p>Paste any raw code, config, logs, or environment files below for an instant leak check. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-upload"></i> Drop or Paste Code</div>
+
+        <!-- Drag-drop zone -->
+        <div class="drop-zone" id="drop-zone"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
+             onclick="document.getElementById('file-pick').click()">
+          <i class="fa-solid fa-cloud-arrow-up" id="drop-icon"></i>
+          <p><strong>Drag &amp; drop</strong> a file here, or <strong>click</strong> to choose one</p>
+          <p style="margin-top:.35rem;font-size:.78rem;">Supports .env, .yaml, .json, .py, .js, .ts, .rb, .go, .txt, and more</p>
+          <div class="file-loaded-name" id="drop-filename" style="display:none;"></div>
+        </div>
+        <input type="file" id="file-pick" style="display:none" onchange="onFilePick(event)">
+
+        <div class="field">
+          <label>Or paste code manually</label>
+          <textarea id="text-snippet" placeholder="# Paste code or config here…&#10;AWS_ACCESS_KEY_ID=...&#10;DB_PASSWORD=..."
+                    onkeydown="if(event.ctrlKey&&event.key==='Enter')runTextScan()"></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+          <button class="btn btn-ghost btn-sm" onclick="loadSampleLeak()">
+            <i class="fa-solid fa-flask"></i> Load sample leak
+          </button>
+          <div style="display:flex;gap:.6rem;">
+            <button class="btn btn-ghost btn-sm" onclick="clearSnippet()"><i class="fa-solid fa-trash"></i> Clear</button>
+            <button class="btn btn-primary" id="btn-text" onclick="runTextScan()">
+              <i class="fa-solid fa-bolt"></i> Scan Snippet
+            </button>
+          </div>
+        </div>
+
+        <div class="scan-progress" id="prog-text">
+          <div class="progress-label"><span>Analysing text…</span></div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ╔═══════════════════════╗ -->
+    <!-- ║  Page: Git History    ║ -->
+    <!-- ╚═══════════════════════╝ -->
+    <section class="page" id="page-git">
+      <div class="section-head">
+        <h1><i class="fa-brands fa-git-alt" style="color:#f97316"></i> Git History Scanner</h1>
+        <p>Traverses every commit blob with SHA deduplication. Supports local repos <em>and</em> remote GitHub / GitLab URLs. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-code-branch"></i> Repository Target</div>
+        <div class="field">
+          <label>Repository path or URL</label>
+          <input type="text" id="git-path" placeholder="e.g.  .  or  C:\repos\my-app  or  https://github.com/owner/repo.git"
+                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runGitScan()">
+        </div>
+        <div class="field" style="max-width:240px;">
+          <label>Max commits to scan <span style="color:var(--muted)">(leave blank = all)</span></label>
+          <input type="number" id="git-max-commits" placeholder="e.g. 200" min="1"
+                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runGitScan()">
+        </div>
+        <button class="btn btn-primary" id="btn-git" onclick="runGitScan()" style="margin-top:.25rem;">
+          <i class="fa-brands fa-git-alt"></i> Scan Git History
         </button>
+        <div class="scan-progress" id="prog-git">
+          <div class="progress-label">
+            <span id="prog-git-txt">Cloning &amp; scanning commits…</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:.9rem;">
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--med)"></i>
+          For remote URLs, <code>git</code> must be installed and accessible on PATH.
+          Cloning may take time for large repos.
+        </p>
       </div>
-      <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; margin-bottom: 0.75rem;">
-        Paste raw code, config files, or logs below to instantly test for leaked credentials.
-      </p>
-      <textarea id="text-snippet" placeholder="Paste code or config text here..."></textarea>
-      <div style="margin-top: 0.75rem; text-align: right;">
-        <button class="btn" id="btn-text" onclick="scanText()"><i class="fa-solid fa-bolt"></i> Scan Snippet</button>
-      </div>
-    </div>
+    </section>
 
-    <!-- Tab 3: Git Scanner -->
-    <div id="tab-git" class="tab-content panel">
-      <h2>Scan Git Repository History</h2>
-      <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem;">
-        Traverses historical commits and git blobs with visited SHA deduplication. Supports local folders and remote URLs (e.g. GitHub/GitLab).
-      </p>
-      <div class="input-group">
-        <input type="text" id="git-path" placeholder="e.g. . or C:\path\to\repo or https://github.com/owner/repo.git" style="flex: 2;">
-        <input type="number" id="git-max-commits" placeholder="Max commits (optional)" min="1" style="max-width: 180px;">
-        <button class="btn" id="btn-git" onclick="scanGit()"><i class="fa-brands fa-git-alt"></i> Scan Git History</button>
+    <!-- ╔═══════════════════╗ -->
+    <!-- ║  Page: Results    ║ -->
+    <!-- ╚═══════════════════╝ -->
+    <section class="page" id="page-results">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-table-list" style="color:var(--indigo)"></i> Detection Results</h1>
+        <p>Click any row to expand the full line context. Use the toolbar to filter and export.</p>
       </div>
-    </div>
 
-    <!-- Stats Cards -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">
-          <i class="fa-solid fa-triangle-exclamation"></i>
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="search-input" placeholder="Search file, rule, value…" oninput="applyFilters()">
+          </div>
+          <select class="filter-sel" id="sev-filter" onchange="applyFilters()">
+            <option value="">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+          <select class="filter-sel" id="type-filter" onchange="applyFilters()">
+            <option value="">All Types</option>
+          </select>
         </div>
-        <div>
-          <div class="stat-val" id="stat-total">0</div>
-          <div class="stat-lbl">Total Secrets Found</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(220, 38, 38, 0.2); color: #f87171;">
-          <i class="fa-solid fa-radiation"></i>
-        </div>
-        <div>
-          <div class="stat-val" id="stat-crit">0</div>
-          <div class="stat-lbl">Critical / High Severity</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--warning);">
-          <i class="fa-solid fa-key"></i>
-        </div>
-        <div>
-          <div class="stat-val" id="stat-medium">0</div>
-          <div class="stat-lbl">Medium / Low Severity</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: var(--primary);">
-          <i class="fa-solid fa-file"></i>
-        </div>
-        <div>
-          <div class="stat-val" id="stat-files">0</div>
-          <div class="stat-lbl">Files / Blobs Affected</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Results Table -->
-    <div class="panel">
-      <div class="actions-bar">
-        <h3>Detection Results</h3>
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="exportHTML()">
-            <i class="fa-solid fa-file-code"></i> HTML Report
-          </button>
-          <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="exportMarkdown()">
-            <i class="fa-solid fa-file-lines"></i> Markdown
-          </button>
-          <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="exportSARIF()">
-            <i class="fa-solid fa-shield-virus"></i> SARIF 2.1
-          </button>
-          <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="exportJSON()">
-            <i class="fa-solid fa-download"></i> JSON
-          </button>
-          <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="exportCSV()">
-            <i class="fa-solid fa-file-csv"></i> CSV
-          </button>
+        <div class="toolbar-right">
+          <button class="btn btn-ghost btn-sm" onclick="exportJSON()"><i class="fa-solid fa-download"></i> JSON</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV()"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportMarkdown()"><i class="fa-solid fa-file-lines"></i> MD</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportSARIF()"><i class="fa-solid fa-shield-virus"></i> SARIF</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportHTML()"><i class="fa-solid fa-file-code"></i> HTML</button>
+          <button class="btn btn-danger btn-sm" onclick="clearResults()"><i class="fa-solid fa-trash"></i> Clear</button>
         </div>
       </div>
 
-      <div class="table-container">
-        <table>
+      <!-- Table -->
+      <div class="table-wrap">
+        <table id="results-table">
           <thead>
             <tr>
-              <th>Severity</th>
-              <th>Rule / Type</th>
-              <th>Location</th>
-              <th>Line : Col</th>
+              <th onclick="sortBy('severity')"  id="th-severity">Severity<span class="sort-icon">↕</span></th>
+              <th onclick="sortBy('rule_name')"  id="th-rule_name">Rule<span class="sort-icon">↕</span></th>
+              <th>File</th>
+              <th onclick="sortBy('line')"       id="th-line">Line<span class="sort-icon">↕</span></th>
               <th>Masked Secret</th>
-              <th>Context / Commit</th>
+              <th onclick="sortBy('score')"      id="th-score">Score<span class="sort-icon">↕</span></th>
             </tr>
           </thead>
           <tbody id="results-body">
-            <tr>
-              <td colspan="6">
-                <div class="empty-state">
-                  <div class="empty-icon"><i class="fa-solid fa-shield-check"></i></div>
-                  <p style="font-weight: 500; color: var(--text-main);">No scans performed yet</p>
-                  <p style="font-size: 0.85rem; margin-top: 0.25rem;">Enter a directory path above, scan a snippet, or run a git history scan.</p>
-                </div>
-              </td>
-            </tr>
+            <tr><td colspan="6">
+              <div class="empty-state">
+                <div class="icon"><i class="fa-solid fa-shield-check"></i></div>
+                <h3>No scan results yet</h3>
+                <p>Run a directory, snippet, or git history scan to see findings here.</p>
+              </div>
+            </td></tr>
           </tbody>
         </table>
+        <div class="pagination" id="pagination" style="display:none;"></div>
       </div>
-    </div>
+      <div id="result-count-label" style="font-size:.78rem;color:var(--muted);margin-top:.5rem;text-align:right;"></div>
+    </section>
+
+    <!-- ╔══════════════════╗ -->
+    <!-- ║  Page: Overview  ║ -->
+    <!-- ╚══════════════════╝ -->
+    <section class="page" id="page-overview">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-chart-pie" style="color:var(--violet)"></i> Scan Overview</h1>
+        <p>Severity breakdown and key statistics for the most recent scan.</p>
+      </div>
+
+      <div class="stats-grid" id="stat-cards">
+        <div class="stat-card">
+          <div class="stat-label">Total Found</div>
+          <div class="stat-value stat-crit" id="ov-total">0</div>
+          <div class="stat-sub">secrets &amp; credentials</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Critical</div>
+          <div class="stat-value stat-crit" id="ov-critical">0</div>
+          <div class="stat-sub">private keys, root tokens</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">High</div>
+          <div class="stat-value stat-high" id="ov-high">0</div>
+          <div class="stat-sub">AWS, GitHub, Stripe…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Medium</div>
+          <div class="stat-value stat-med" id="ov-medium">0</div>
+          <div class="stat-sub">generic secrets, passwords</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Low</div>
+          <div class="stat-value stat-blue" id="ov-low">0</div>
+          <div class="stat-sub">low-confidence hits</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Files Affected</div>
+          <div class="stat-value stat-safe" id="ov-files">0</div>
+          <div class="stat-sub">unique paths with findings</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-donut"></i> Severity Distribution</div>
+        <div class="chart-row">
+          <canvas id="donut-chart" width="200" height="200"></canvas>
+          <div class="chart-legend" id="chart-legend"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.25rem;" id="top-files-card">
+        <div class="card-title"><i class="fa-solid fa-file-circle-exclamation"></i> Most Affected Files</div>
+        <div id="top-files-list"></div>
+      </div>
+    </section>
+
+    <!-- ╔══════════════════╗ -->
+    <!-- ║  Page: History   ║ -->
+    <!-- ╚══════════════════╝ -->
+    <section class="page" id="page-history">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-clock-rotate-left" style="color:var(--cyan)"></i> Scan History</h1>
+        <p>Click a past scan to reload its findings into Results &amp; Overview. History is persisted across page reloads.</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button class="btn btn-danger btn-sm" onclick="clearHistory()"><i class="fa-solid fa-trash"></i> Clear History</button>
+      </div>
+      <div class="history-list" id="history-list">
+        <div class="empty-state">
+          <div class="icon"><i class="fa-solid fa-clock"></i></div>
+          <h3>No history yet</h3>
+          <p>Completed scans will appear here and persist across page reloads.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ╔═══════════════════════╗ -->
+    <!-- ║  Page: Detection Rules║ -->
+    <!-- ╚═══════════════════════╝ -->
+    <section class="page" id="page-rules">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-sliders" style="color:var(--indigo)"></i> Detection Rules</h1>
+        <p>All active rules loaded from <code>rules/default_rules.yaml</code>. Each rule specifies a regex pattern and severity.</p>
+      </div>
+      <div id="rules-container">
+        <div class="empty-state">
+          <div class="icon"><i class="fa-solid fa-gear fa-spin"></i></div>
+          <h3>Loading rules…</h3>
+        </div>
+      </div>
+    </section>
 
   </main>
+</div>
 
-  <script>
-    let currentFindings = [];
-    let lastScanTarget = "SecretScanner Web";
+<!-- ── Toast container ── -->
+<div id="toast-container"></div>
 
-    function switchTab(tabId, ev) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      ev.currentTarget.classList.add('active');
-      document.getElementById('tab-' + tabId).classList.add('active');
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let allFindings    = [];   // raw findings from last scan
+let filteredRows   = [];   // after search/filter
+let dismissedFPs   = new Set(); // fingerprints dismissed by user
+let lastTarget     = 'SecretScanner Web';
+let sortKey        = null;
+let sortAsc        = true;
+let expandedRow    = null;
+let scanHistory    = [];   // [{label, icon, iconBg, findings, ts}]
+
+// Pagination
+const PAGE_SIZE    = 100;  // rows per page
+let currentPage    = 1;
+
+/* ═══════════════════════════════════════════════
+   MOBILE SIDEBAR
+═══════════════════════════════════════════════ */
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// Close sidebar when clicking outside on mobile
+document.getElementById('main-content').addEventListener('click', () => {
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('open');
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════ */
+function goPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+  if (id === 'rules') loadRules();
+  // Close mobile sidebar on navigation
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+function toast(msg, type='info', duration=4000) {
+  const icons = { success:'fa-circle-check', error:'fa-circle-exclamation', warn:'fa-triangle-exclamation', info:'fa-circle-info' };
+  const colors = { success:'var(--safe)', error:'var(--crit)', warn:'var(--med)', info:'var(--indigo)' };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<i class="fa-solid ${icons[type]}" style="color:${colors[type]};font-size:1rem;flex-shrink:0"></i><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+
+/* ═══════════════════════════════════════════════
+   PROGRESS
+═══════════════════════════════════════════════ */
+function showProgress(id) { document.getElementById(id).classList.add('visible'); }
+function hideProgress(id) { document.getElementById(id).classList.remove('visible'); }
+
+function setBtn(id, loading, originalHTML) {
+  const btn = document.getElementById(id);
+  if (loading) {
+    btn._orig = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Scanning…';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn._orig || originalHTML;
+    btn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SCAN — PATH
+═══════════════════════════════════════════════ */
+async function runPathScan() {
+  const path = document.getElementById('path-input').value.trim() || '.';
+  lastTarget  = path;
+  setBtn('btn-path', true);
+  showProgress('prog-path');
+  try {
+    const res  = await fetch('/scan', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path}) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Scan failed');
+    commitFindings(data.findings, path, 'fa-folder-open', 'rgba(99,102,241,.2)');
+  } catch(e) { toast('Scan error: ' + e.message, 'error'); }
+  finally { setBtn('btn-path', false); hideProgress('prog-path'); }
+}
+
+/* ═══════════════════════════════════════════════
+   SCAN — TEXT
+═══════════════════════════════════════════════ */
+async function runTextScan() {
+  const text = document.getElementById('text-snippet').value;
+  if (!text.trim()) { toast('Paste some code first.', 'warn'); return; }
+  lastTarget  = 'Inline Snippet';
+  setBtn('btn-text', true);
+  showProgress('prog-text');
+  try {
+    const res  = await fetch('/scan/text', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text}) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Scan failed');
+    commitFindings(data.findings, 'Code Snippet', 'fa-file-code', 'rgba(34,211,238,.15)');
+  } catch(e) { toast('Scan error: ' + e.message, 'error'); }
+  finally { setBtn('btn-text', false); hideProgress('prog-text'); }
+}
+
+/* ═══════════════════════════════════════════════
+   SCAN — GIT
+═══════════════════════════════════════════════ */
+async function runGitScan() {
+  const path = document.getElementById('git-path').value.trim() || '.';
+  const maxVal = document.getElementById('git-max-commits').value.trim();
+  const maxCommits = maxVal ? parseInt(maxVal, 10) : null;
+  lastTarget  = 'Git: ' + path;
+
+  const isRemote = /^(https?|git@|ssh:\/\/)/.test(path);
+  document.getElementById('prog-git-txt').textContent = isRemote ? 'Cloning & scanning commits…' : 'Scanning git history…';
+
+  setBtn('btn-git', true);
+  showProgress('prog-git');
+  try {
+    const payload = { repo_path: path };
+    if (maxCommits && maxCommits > 0) payload.max_commits = maxCommits;
+    const res  = await fetch('/scan/git', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Git scan failed');
+    commitFindings(data.findings, lastTarget, 'fa-brands fa-git-alt', 'rgba(249,115,22,.15)');
+  } catch(e) { toast('Git scan error: ' + e.message, 'error'); }
+  finally { setBtn('btn-git', false); hideProgress('prog-git'); }
+}
+
+/* ═══════════════════════════════════════════════
+   COMMIT FINDINGS — update all views
+═══════════════════════════════════════════════ */
+function commitFindings(findings, label, icon, iconBg) {
+  allFindings = findings;
+  filteredRows = [...findings];
+  dismissedFPs = new Set();
+  sortKey = null; sortAsc = true;
+  currentPage = 1;
+
+  // Update type-filter dropdown
+  updateTypeFilter(findings);
+
+  // History — save to localStorage
+  const ts = new Date().toLocaleTimeString();
+  scanHistory.unshift({ label, icon, iconBg, findings: [...findings], ts });
+  if (scanHistory.length > 50) scanHistory.length = 50; // cap at 50 entries
+  saveHistory();
+  renderHistory();
+
+  // Sidebar badge
+  const badge = document.getElementById('sidebar-count');
+  if (findings.length > 0) { badge.textContent = findings.length; badge.style.display = 'inline'; }
+  else badge.style.display = 'none';
+
+  renderTable();
+  renderOverview();
+
+  if (findings.length === 0) toast('✅ All clean — no secrets detected!', 'success');
+  else toast(`Found ${findings.length} secret${findings.length===1?'':'s'} in "${label}"`, 'error');
+
+  goPage('results');
+}
+
+/* ═══════════════════════════════════════════════
+   TYPE FILTER
+═══════════════════════════════════════════════ */
+function updateTypeFilter(findings) {
+  const sel = document.getElementById('type-filter');
+  const types = [...new Set(findings.map(f => f.rule_name || f.type).filter(Boolean))].sort();
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Types</option>' + types.map(t =>
+    `<option value="${escHtml(t)}"${t===current?' selected':''}>${escHtml(t)}</option>`
+  ).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   FILTER + SEARCH
+═══════════════════════════════════════════════ */
+function applyFilters() {
+  const q    = document.getElementById('search-input').value.toLowerCase();
+  const sev  = document.getElementById('sev-filter').value.toUpperCase();
+  const type = document.getElementById('type-filter').value.toLowerCase();
+  filteredRows = allFindings.filter(f => {
+    if (dismissedFPs.has(f.fingerprint)) return false;
+    const matchSev  = !sev  || (f.severity||'').toUpperCase() === sev;
+    const matchType = !type || (f.rule_name||f.type||'').toLowerCase() === type;
+    const matchText = !q    || [f.file, f.rule_name, f.type, f.masked_value, f.context].join(' ').toLowerCase().includes(q);
+    return matchSev && matchType && matchText;
+  });
+  if (sortKey) doSort(sortKey, false);
+  currentPage = 1;
+  renderTable();
+}
+
+/* ═══════════════════════════════════════════════
+   SORT
+═══════════════════════════════════════════════ */
+const SEV_ORDER = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
+function sortBy(key) {
+  if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+  const th = document.getElementById('th-' + key);
+  if (th) { th.classList.add('sorted'); th.querySelector('.sort-icon').textContent = sortAsc ? '↑' : '↓'; }
+  doSort(key, true);
+  renderTable();
+}
+
+function doSort(key, _render) {
+  filteredRows.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    if (key === 'severity') { va = SEV_ORDER[va] ?? 9; vb = SEV_ORDER[vb] ?? 9; }
+    if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? va - vb : vb - va;
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER TABLE  (paginated — max PAGE_SIZE rows)
+═══════════════════════════════════════════════ */
+function sevBadge(sev) {
+  const s = (sev||'MEDIUM').toUpperCase();
+  const cls = { CRITICAL:'badge-critical', HIGH:'badge-high', MEDIUM:'badge-medium', LOW:'badge-low' }[s] || 'badge-medium';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+
+function scoreBar(score) {
+  const pct = Math.round((score||0)*100);
+  let color = '#3b82f6';
+  if (pct >= 85) color = 'var(--crit)';
+  else if (pct >= 65) color = 'var(--high)';
+  else if (pct >= 45) color = 'var(--med)';
+  return `<div class="score-bar">
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    <span style="font-size:.75rem;color:var(--subtle)">${pct}%</span>
+  </div>`;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('results-body');
+  const pagEl = document.getElementById('pagination');
+
+  if (filteredRows.length === 0) {
+    pagEl.style.display = 'none';
+    if (allFindings.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+        <div class="icon"><i class="fa-solid fa-shield-check"></i></div>
+        <h3>No scan results yet</h3>
+        <p>Run a directory, snippet, or git history scan to see findings here.</p>
+      </div></td></tr>`;
+    } else {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+        <div class="icon" style="color:var(--med)"><i class="fa-solid fa-filter-circle-xmark"></i></div>
+        <h3>No results match your filter</h3>
+        <p>Try a different search or severity selection.</p>
+      </div></td></tr>`;
     }
+    document.getElementById('result-count-label').textContent = '';
+    return;
+  }
 
-    function loadSampleText() {
-      document.getElementById('text-snippet').value = 
-        `# Cloud configuration demo\n` +
-        `AWS_ACCESS_KEY_ID=FAKE_AWS_KEY_FOR_DEMO_ONLY\n` +
-        `AWS_SECRET_ACCESS_KEY=FAKE_AWS_SECRET_FOR_DEMO_ONLY\n` +
-        `STRIPE_KEY=FAKE_STRIPE_KEY_FOR_DEMO_ONLY\n` +
-        `GITHUB_TOKEN=FAKE_GITHUB_TOKEN_FOR_DEMO_ONLY\n` +
-        `SLACK_TOKEN=FAKE_SLACK_TOKEN_FOR_DEMO_ONLY`;
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd   = Math.min(pageStart + PAGE_SIZE, filteredRows.length);
+  const pageRows  = filteredRows.slice(pageStart, pageEnd);
+
+  tbody.innerHTML = pageRows.map((f, i) => {
+    const globalI = pageStart + i;
+    // FIX: normalise path separators correctly (backslash → forward-slash)
+    const fname = f.file ? f.file.replace(/\\/g, '/').split('/').slice(-2).join('/') : '';
+    const commit = f.commit_hash
+      ? `<br><span style="font-size:.72rem;color:var(--muted)">commit <code>${f.commit_hash.slice(0,8)}</code> · ${escHtml(f.commit_author||'')}</span>`
+      : '';
+    return `
+    <tr class="row-clickable" onclick="toggleExpand(${globalI})" id="row-${globalI}">
+      <td>${sevBadge(f.severity)}</td>
+      <td>
+        <div style="font-weight:600;font-size:.87rem">${escHtml(f.rule_name||f.type)}</div>
+        <div style="font-size:.73rem;color:var(--muted)"><code>${escHtml(f.type)}</code></div>
+      </td>
+      <td>
+        <span class="file-chip" title="${escHtml(f.file)}">${escHtml(fname)}</span>${commit}
+      </td>
+      <td style="font-variant-numeric:tabular-nums;color:var(--subtle)">L${f.line} : C${f.col}</td>
+      <td><span class="code-chip">${escHtml(f.masked_value||'****')}</span></td>
+      <td>${scoreBar(f.score)}</td>
+    </tr>
+    <tr class="expandable-row" id="expand-${globalI}">
+      <td class="expand-cell" colspan="6">
+        <div><strong style="color:var(--subtle)">Context:</strong> <code>${escHtml(f.context||'')}</code></div>
+        <div style="margin-top:.3rem"><strong style="color:var(--subtle)">Full path:</strong> <span style="color:#a5b4fc">${escHtml(f.file||'')}</span></div>
+        <div style="margin-top:.3rem"><strong style="color:var(--subtle)">Fingerprint:</strong> <code id="fp-${globalI}">${escHtml(f.fingerprint||'')}</code></div>
+        ${f.commit_date ? `<div style="margin-top:.3rem"><strong style="color:var(--subtle)">Commit date:</strong> <span style="color:var(--muted)">${escHtml(f.commit_date)}</span></div>` : ''}
+        ${f.commit_message ? `<div style="margin-top:.3rem"><strong style="color:var(--subtle)">Commit message:</strong> <span style="color:var(--muted)">${escHtml(f.commit_message)}</span></div>` : ''}
+        <div class="expand-actions">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();copyFP(${globalI})">
+            <i class="fa-solid fa-copy"></i> Copy Fingerprint
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();dismissFinding(${globalI})">
+            <i class="fa-solid fa-eye-slash"></i> Dismiss
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Pagination controls
+  if (totalPages <= 1) {
+    pagEl.style.display = 'none';
+  } else {
+    pagEl.style.display = 'flex';
+    let pagHTML = `<button class="page-btn" onclick="goToPage(${currentPage-1})" ${currentPage===1?'disabled':''}><i class="fa-solid fa-chevron-left"></i></button>`;
+    // Show at most 7 page buttons
+    const start = Math.max(1, currentPage - 3);
+    const end   = Math.min(totalPages, currentPage + 3);
+    if (start > 1) pagHTML += `<button class="page-btn" onclick="goToPage(1)">1</button><span class="page-info">…</span>`;
+    for (let p = start; p <= end; p++) {
+      pagHTML += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goToPage(${p})">${p}</button>`;
     }
+    if (end < totalPages) pagHTML += `<span class="page-info">…</span><button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    pagHTML += `<button class="page-btn" onclick="goToPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}><i class="fa-solid fa-chevron-right"></i></button>`;
+    pagEl.innerHTML = pagHTML;
+  }
 
-    async function scanPath() {
-      const path = document.getElementById('target-path').value.trim() || ".";
-      lastScanTarget = path;
-      const btn = document.getElementById('btn-path');
-      btn.innerHTML = '<span class="loading-spinner"></span> Scanning...';
-      btn.disabled = true;
+  const lbl = document.getElementById('result-count-label');
+  lbl.textContent = `Showing ${pageStart+1}–${pageEnd} of ${filteredRows.length} finding${filteredRows.length===1?'':'s'}` +
+    (allFindings.length !== filteredRows.length ? ` (filtered from ${allFindings.length})` : '');
+}
 
-      try {
-        const res = await fetch('/scan', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ path: path })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Scan failed');
-        renderFindings(data.findings);
-      } catch (err) {
-        alert('Scan Error: ' + err.message);
-      } finally {
-        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Scan Target';
-        btn.disabled = false;
-      }
-    }
+function goToPage(p) {
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
+  if (p < 1 || p > totalPages) return;
+  if (expandedRow !== null) {
+    document.getElementById('expand-' + expandedRow)?.classList.remove('open');
+    expandedRow = null;
+  }
+  currentPage = p;
+  renderTable();
+  document.getElementById('results-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-    async function scanText() {
-      const text = document.getElementById('text-snippet').value;
-      if (!text) return alert('Please paste text snippet.');
-      lastScanTarget = "Inline Code Snippet";
-      const btn = document.getElementById('btn-text');
-      btn.innerHTML = '<span class="loading-spinner"></span> Scanning...';
-      btn.disabled = true;
+function toggleExpand(i) {
+  const row = document.getElementById('expand-' + i);
+  if (!row) return;
+  const isOpen = row.classList.contains('open');
+  if (expandedRow !== null) {
+    document.getElementById('expand-' + expandedRow)?.classList.remove('open');
+  }
+  if (!isOpen) { row.classList.add('open'); expandedRow = i; }
+  else expandedRow = null;
+}
 
-      try {
-        const res = await fetch('/scan/text', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ text: text })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Scan failed');
-        renderFindings(data.findings);
-      } catch (err) {
-        alert('Scan Error: ' + err.message);
-      } finally {
-        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Scan Snippet';
-        btn.disabled = false;
-      }
-    }
+function copyFP(i) {
+  const fp = document.getElementById('fp-' + i)?.textContent || '';
+  navigator.clipboard.writeText(fp).then(() => toast('Fingerprint copied!', 'success', 2500)).catch(() => toast('Copy failed', 'error'));
+}
 
-    async function scanGit() {
-      const path = document.getElementById('git-path').value.trim() || ".";
-      const maxCommitsVal = document.getElementById('git-max-commits')?.value.trim();
-      const maxCommits = maxCommitsVal ? parseInt(maxCommitsVal, 10) : null;
+function dismissFinding(i) {
+  const f = filteredRows[i];
+  if (!f) return;
+  dismissedFPs.add(f.fingerprint);
+  applyFilters();
+  toast('Finding dismissed from view.', 'info', 2500);
+}
 
-      lastScanTarget = "Git: " + path;
-      const btn = document.getElementById('btn-git');
-      const isRemote = path.startsWith('http://') || path.startsWith('https://') || path.startsWith('git@') || path.startsWith('ssh://');
-      btn.innerHTML = isRemote ? '<span class="loading-spinner"></span> Cloning & Scanning...' : '<span class="loading-spinner"></span> Scanning Git...';
-      btn.disabled = true;
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-      try {
-        const payload = { repo_path: path };
-        if (maxCommits && maxCommits > 0) {
-          payload.max_commits = maxCommits;
-        }
-        const res = await fetch('/scan/git', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Git scan failed');
-        renderFindings(data.findings);
-      } catch (err) {
-        alert('Git Scan Error: ' + err.message);
-      } finally {
-        btn.innerHTML = '<i class="fa-brands fa-git-alt"></i> Scan Git History';
-        btn.disabled = false;
-      }
-    }
+/* ═══════════════════════════════════════════════
+   OVERVIEW
+═══════════════════════════════════════════════ */
+function renderOverview() {
+  const counts = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 };
+  const fileCounts = {};
+  allFindings.forEach(f => {
+    const s = (f.severity||'MEDIUM').toUpperCase();
+    counts[s] = (counts[s]||0) + 1;
+    fileCounts[f.file] = (fileCounts[f.file]||0) + 1;
+  });
+  const uniqueFiles = Object.keys(fileCounts).length;
 
-    function renderFindings(findings) {
-      currentFindings = findings;
-      const tbody = document.getElementById('results-body');
-      
-      const critCount = findings.filter(f => ['CRITICAL', 'HIGH'].includes((f.severity || '').toUpperCase())).length;
-      const medCount = findings.filter(f => !['CRITICAL', 'HIGH'].includes((f.severity || '').toUpperCase())).length;
-      const uniqueFiles = new Set(findings.map(f => f.file));
+  document.getElementById('ov-total').textContent    = allFindings.length;
+  document.getElementById('ov-critical').textContent = counts.CRITICAL;
+  document.getElementById('ov-high').textContent     = counts.HIGH;
+  document.getElementById('ov-medium').textContent   = counts.MEDIUM;
+  document.getElementById('ov-low').textContent      = counts.LOW;
+  document.getElementById('ov-files').textContent    = uniqueFiles;
 
-      document.getElementById('stat-total').innerText = findings.length;
-      document.getElementById('stat-crit').innerText = critCount;
-      document.getElementById('stat-medium').innerText = medCount;
-      document.getElementById('stat-files').innerText = uniqueFiles.size;
+  drawDonut(counts);
+  renderTopFiles(fileCounts);
+}
 
-      if (findings.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6">
-              <div class="empty-state">
-                <div class="empty-icon" style="color: var(--success);"><i class="fa-solid fa-circle-check"></i></div>
-                <p style="font-weight: 500; color: var(--text-main);">Clean scan! No secrets detected.</p>
-              </div>
-            </td>
-          </tr>`;
-        return;
-      }
+function drawDonut(counts) {
+  const canvas = document.getElementById('donut-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = 200, H = 200, cx = 100, cy = 100, R = 80, rInner = 48;
+  const total = counts.CRITICAL + counts.HIGH + counts.MEDIUM + counts.LOW;
+  const colors = { CRITICAL:'#ef4444', HIGH:'#f97316', MEDIUM:'#eab308', LOW:'#3b82f6' };
+  const labels = ['CRITICAL','HIGH','MEDIUM','LOW'];
 
-      tbody.innerHTML = findings.map(f => {
-        const sev = (f.severity || 'MEDIUM').toUpperCase();
-        let badgeClass = 'badge-medium';
-        if (sev === 'CRITICAL') badgeClass = 'badge-critical';
-        else if (sev === 'HIGH') badgeClass = 'badge-high';
-        else if (sev === 'LOW') badgeClass = 'badge-low';
+  ctx.clearRect(0, 0, W, H);
 
-        const commitHtml = f.commit_hash ? 
-          `<br><span style="color: #64748b; font-size: 0.75rem;">Commit: <code>${f.commit_hash}</code> (${f.commit_author || ''})</span>` : '';
+  if (total === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    ctx.beginPath(); ctx.arc(cx,cy,rInner,0,Math.PI*2);
+    ctx.fillStyle = '#07091a'; ctx.fill();
+    ctx.fillStyle = '#64748b'; ctx.font = '600 13px Inter'; ctx.textAlign = 'center';
+    ctx.fillText('No findings', cx, cy+4);
+    document.getElementById('chart-legend').innerHTML = '<p style="color:var(--muted);font-size:.85rem">Run a scan first.</p>';
+    return;
+  }
 
-        return `
-          <tr>
-            <td><span class="badge ${badgeClass}">${sev}</span></td>
-            <td><strong>${f.rule_name || f.type}</strong><br><span style="color: #64748b; font-size: 0.75rem;"><code>${f.type}</code></span></td>
-            <td style="word-break: break-all; max-width: 250px;"><code>${f.file}</code></td>
-            <td>L${f.line} : C${f.col}</td>
-            <td><span class="code-text">${f.masked_value || '****'}</span></td>
-            <td style="max-width: 320px; word-break: break-all;"><span style="font-family: monospace; font-size: 0.8rem; color: #cbd5e1;">${f.context || ''}</span>${commitHtml}</td>
-          </tr>
-        `;
+  // Animated draw using requestAnimationFrame
+  const segments = labels.filter(l => counts[l] > 0).map(l => ({
+    label: l, frac: counts[l]/total, color: colors[l], count: counts[l]
+  }));
+
+  let startAngle = -Math.PI/2;
+  const gap = 0.03;
+
+  // Draw segments
+  segments.forEach(seg => {
+    const sweep = seg.frac * Math.PI * 2 - gap;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, startAngle + gap/2, startAngle + sweep + gap/2);
+    ctx.closePath();
+    ctx.fillStyle = seg.color;
+    ctx.shadowColor = seg.color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    startAngle += seg.frac * Math.PI * 2;
+  });
+
+  // Donut hole
+  ctx.beginPath(); ctx.arc(cx,cy,rInner,0,Math.PI*2);
+  ctx.fillStyle = '#07091a'; ctx.fill();
+
+  // Centre text
+  ctx.fillStyle = '#f1f5f9'; ctx.font = '700 24px Inter'; ctx.textAlign = 'center';
+  ctx.fillText(total, cx, cy-2);
+  ctx.fillStyle = '#64748b'; ctx.font = '500 11px Inter';
+  ctx.fillText('findings', cx, cy+14);
+
+  // Legend
+  document.getElementById('chart-legend').innerHTML = segments.map(seg =>
+    `<div class="legend-item">
+      <div class="legend-dot" style="background:${seg.color};box-shadow:0 0 6px ${seg.color}40"></div>
+      <span><strong>${seg.count}</strong> ${seg.label.charAt(0)+seg.label.slice(1).toLowerCase()}</span>
+      <span style="color:var(--muted);margin-left:auto">${Math.round(seg.frac*100)}%</span>
+    </div>`
+  ).join('');
+}
+
+function renderTopFiles(fileCounts) {
+  const sorted = Object.entries(fileCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max = sorted[0]?.[1] || 1;
+  document.getElementById('top-files-list').innerHTML = sorted.length === 0
+    ? '<p style="color:var(--muted);font-size:.85rem">No files affected.</p>'
+    : sorted.map(([f,n]) => {
+        const pct = Math.round((n/max)*100);
+        // FIX: normalise path separators
+        const short = f.replace(/\\/g, '/').split('/').slice(-2).join('/');
+        const sevColor = n >= 10 ? 'var(--crit)' : n >= 5 ? 'var(--high)' : 'var(--indigo)';
+        return `<div style="margin-bottom:.85rem;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:.3rem;">
+            <span class="file-chip" title="${escHtml(f)}">${escHtml(short)}</span>
+            <span style="font-size:.8rem;color:var(--subtle)">${n} finding${n===1?'':'s'}</span>
+          </div>
+          <div class="bar-track" style="width:100%;height:6px;">
+            <div class="bar-fill" style="width:${pct}%;background:${sevColor}"></div>
+          </div>
+        </div>`;
       }).join('');
-    }
+}
 
-    async function exportHTML() {
-      if (!currentFindings.length) return alert('No findings to export.');
-      const res = await fetch('/report/html', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ findings: currentFindings, target_path: lastScanTarget })
-      });
-      const text = await res.text();
-      downloadBlob(text, 'secret_audit_report.html', 'text/html');
-    }
+/* ═══════════════════════════════════════════════
+   HISTORY (with localStorage persistence)
+═══════════════════════════════════════════════ */
+const HISTORY_KEY = 'secretscanner_history_v2';
 
-    async function exportMarkdown() {
-      if (!currentFindings.length) return alert('No findings to export.');
-      const res = await fetch('/report/markdown', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ findings: currentFindings, target_path: lastScanTarget })
-      });
-      const text = await res.text();
-      downloadBlob(text, 'secret_audit_report.md', 'text/markdown');
-    }
+function saveHistory() {
+  try {
+    // Store metadata only (not full findings) if list is large, to stay within localStorage limits
+    const storable = scanHistory.map(s => ({
+      label: s.label, icon: s.icon, iconBg: s.iconBg, ts: s.ts,
+      // Only persist up to 500 findings per entry to avoid localStorage overflow
+      findings: s.findings.slice(0, 500)
+    }));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(storable));
+  } catch(e) {
+    // Storage quota exceeded — trim and retry
+    try {
+      const slim = scanHistory.slice(0,10).map(s => ({
+        label: s.label, icon: s.icon, iconBg: s.iconBg, ts: s.ts, findings: s.findings.slice(0,50)
+      }));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(slim));
+    } catch(_) { /* give up silently */ }
+  }
+}
 
-    async function exportSARIF() {
-      if (!currentFindings.length) return alert('No findings to export.');
-      const res = await fetch('/report/sarif', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ findings: currentFindings, target_path: lastScanTarget })
-      });
-      const text = await res.text();
-      downloadBlob(text, 'secret_audit_report.sarif', 'application/json');
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw) {
+      scanHistory = JSON.parse(raw);
+      renderHistory();
     }
+  } catch(e) { scanHistory = []; }
+}
 
-    function exportJSON() {
-      if (!currentFindings.length) return alert('No findings to export.');
-      downloadBlob(JSON.stringify(currentFindings, null, 2), 'secret_scan_results.json', 'application/json');
-    }
+function clearHistory() {
+  scanHistory = [];
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+  toast('History cleared.', 'info');
+}
 
-    function exportCSV() {
-      if (!currentFindings.length) return alert('No findings to export.');
-      let csv = 'Severity,Rule,Type,File,Line,Column,Score,MaskedSecret,Fingerprint,CommitHash\n';
-      currentFindings.forEach(f => {
-        csv += `"${f.severity || ''}","${f.rule_name || ''}","${f.type}","${f.file}",${f.line},${f.col},${f.score},"${f.masked_value || ''}","${f.fingerprint}","${f.commit_hash || ''}"\n`;
-      });
-      downloadBlob(csv, 'secret_scan_results.csv', 'text/csv');
-    }
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!scanHistory.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon"><i class="fa-solid fa-clock"></i></div>
+      <h3>No history yet</h3>
+      <p>Completed scans will appear here and persist across page reloads.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = scanHistory.map((s, i) => {
+    const cnt = s.findings.length;
+    const badge = cnt === 0
+      ? `<span class="badge" style="background:rgba(34,197,94,.1);color:var(--safe);border:1px solid rgba(34,197,94,.3)">Clean</span>`
+      : `<span class="badge badge-${cnt>10?'critical':cnt>3?'high':'medium'}">${cnt} found</span>`;
+    return `<div class="history-item" onclick="restoreHistory(${i})">
+      <div class="history-icon" style="background:${s.iconBg}"><i class="fa-solid ${s.icon}"></i></div>
+      <div style="flex:1;min-width:0;">
+        <div class="h-path">${escHtml(s.label)}</div>
+        <div class="h-meta">${s.ts}</div>
+      </div>
+      <div class="h-count">${badge}</div>
+    </div>`;
+  }).join('');
+}
 
-    function downloadBlob(content, filename, contentType) {
-      const blob = new Blob([content], {type: contentType});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+function restoreHistory(i) {
+  const s = scanHistory[i];
+  allFindings = s.findings;
+  filteredRows = [...s.findings];
+  dismissedFPs = new Set();
+  lastTarget = s.label;
+  sortKey = null; sortAsc = true;
+  currentPage = 1;
+  updateTypeFilter(s.findings);
+  renderTable();
+  renderOverview();
+  goPage('results');
+  toast(`Restored scan: ${s.label}`, 'info');
+}
+
+/* ═══════════════════════════════════════════════
+   RULES PAGE
+═══════════════════════════════════════════════ */
+let _rulesLoaded = false;
+async function loadRules() {
+  if (_rulesLoaded) return;
+  const container = document.getElementById('rules-container');
+  try {
+    const res  = await fetch('/rules');
+    const data = await res.json();
+    const rules = data.rules || [];
+    const sevColors = { CRITICAL:'var(--crit)', HIGH:'var(--high)', MEDIUM:'var(--med)', LOW:'var(--low)' };
+    container.innerHTML = `
+      <p style="color:var(--subtle);font-size:.85rem;margin-bottom:1rem">${rules.length} active detection rules loaded.</p>
+      <div class="rules-grid">${rules.map(r => `
+        <div class="rule-card">
+          <div class="rule-card-head">
+            <div class="rule-card-name">${escHtml(r.name)}</div>
+            <span class="badge badge-${(r.severity||'medium').toLowerCase()}">${escHtml(r.severity)}</span>
+          </div>
+          <div class="rule-card-desc">${escHtml(r.description||'No description.')}</div>
+          <div class="rule-pattern">${escHtml(r.pattern)}</div>
+        </div>`).join('')}</div>`;
+    _rulesLoaded = true;
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state"><div class="icon" style="color:var(--crit)"><i class="fa-solid fa-circle-exclamation"></i></div><h3>Failed to load rules</h3><p>${escHtml(e.message)}</p></div>`;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   DRAG & DROP / FILE PICK
+═══════════════════════════════════════════════ */
+function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
+function onDragLeave()  { document.getElementById('drop-zone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  onDragLeave();
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+}
+function onFilePick(e) { const f = e.target.files[0]; if (f) readFile(f); }
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('text-snippet').value = ev.target.result;
+    // Show filename in drop-zone
+    const dz = document.getElementById('drop-zone');
+    dz.classList.add('has-file');
+    document.getElementById('drop-icon').className = 'fa-solid fa-file-check';
+    document.getElementById('drop-icon').style.color = 'var(--safe)';
+    const fn = document.getElementById('drop-filename');
+    fn.textContent = '📄 ' + file.name;
+    fn.style.display = 'block';
+    toast(`Loaded: ${file.name}`, 'success');
+  };
+  reader.readAsText(file);
+}
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function loadSampleLeak() {
+  const parts = [
+    '# \u26a0 Demo credentials \u2014 do NOT use in real code',
+    'AWS_ACCESS_KEY_ID=' + 'AKIAIOSFODNN7EXAMPLE',
+    'AWS_SECRET_ACCESS_KEY=' + 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    'STRIPE_SECRET_KEY=' + 'sk_live_' + 'FakeDemoKeyForTestingOnly12345',
+    'GITHUB_TOKEN=' + 'ghp_' + 'FakeTokenForDemoOnly1234567890abcdef',
+    'OPENAI_API_KEY=' + 'sk-proj-' + 'DemoFakeKey1234567890abcdef1234567890uvwxyz',
+    'DB_PASSWORD="super$ecret_pass_123"',
+    'SLACK_BOT_TOKEN=' + 'xox' + 'b-000000000000-demoFakeSlackToken12345678',
+    'JWT_SECRET=' + 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+    'HF_TOKEN=' + 'hf_' + 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij',
+    'SENDGRID_API_KEY=' + 'SG.' + 'FakeKeyPadding12345678901.FakeKeyPadding2345678901234567890123456789012'
+  ];
+  document.getElementById('text-snippet').value = parts.join('\n');
+  toast('Sample leak loaded — hit Scan Snippet!', 'info');
+}
+
+function clearSnippet() {
+  document.getElementById('text-snippet').value = '';
+  document.getElementById('file-pick').value = '';
+  // Reset drop-zone
+  const dz = document.getElementById('drop-zone');
+  dz.classList.remove('has-file');
+  document.getElementById('drop-icon').className = 'fa-solid fa-cloud-arrow-up';
+  document.getElementById('drop-icon').style.color = '';
+  document.getElementById('drop-filename').style.display = 'none';
+}
+
+function clearResults() {
+  allFindings = []; filteredRows = []; dismissedFPs = new Set();
+  currentPage = 1;
+  updateTypeFilter([]);
+  renderTable(); renderOverview();
+  document.getElementById('sidebar-count').style.display = 'none';
+  toast('Results cleared.', 'info');
+}
+
+/* ═══════════════════════════════════════════════
+   EXPORTS
+═══════════════════════════════════════════════ */
+function downloadBlob(content, filename, type) {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([content], {type})),
+    download: filename
+  });
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function exportJSON() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  downloadBlob(JSON.stringify(allFindings, null, 2), 'secret_scan.json', 'application/json');
+  toast('Exported JSON', 'success');
+}
+
+function exportCSV() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
+  let csv = 'Severity,Rule,Type,File,Line,Col,Score,MaskedSecret,Fingerprint,CommitHash\n';
+  allFindings.forEach(f => {
+    csv += [f.severity,f.rule_name,f.type,f.file,f.line,f.col,f.score,f.masked_value,f.fingerprint,f.commit_hash||''].map(escape).join(',') + '\n';
+  });
+  downloadBlob(csv, 'secret_scan.csv', 'text/csv');
+  toast('Exported CSV', 'success');
+}
+
+async function exportHTML() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  try {
+    const res = await fetch('/report/html', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({findings:allFindings, target_path:lastTarget}) });
+    if (!res.ok) throw new Error(await res.text());
+    downloadBlob(await res.text(), 'secret_audit_report.html', 'text/html');
+    toast('Exported HTML Report', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
+async function exportMarkdown() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  try {
+    const res = await fetch('/report/markdown', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({findings:allFindings, target_path:lastTarget}) });
+    if (!res.ok) throw new Error(await res.text());
+    downloadBlob(await res.text(), 'secret_audit_report.md', 'text/markdown');
+    toast('Exported Markdown', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
+async function exportSARIF() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  try {
+    const res = await fetch('/report/sarif', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({findings:allFindings, target_path:lastTarget}) });
+    if (!res.ok) throw new Error(await res.text());
+    downloadBlob(await res.text(), 'secret_audit_report.sarif', 'application/json');
+    toast('Exported SARIF 2.1', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  // Seed overview chart with empty state
+  drawDonut({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
+  // Restore history from localStorage
+  loadHistory();
+
+  // Keyboard shortcut: Ctrl/Cmd+Enter to trigger scans
+  document.getElementById('text-snippet')?.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runTextScan();
     }
-  </script>
+  });
+  document.getElementById('path-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runPathScan();
+    }
+  });
+  document.getElementById('git-path')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runGitScan();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      goPage('results');
+      document.getElementById('search-input')?.focus();
+    }
+  });
+});
+</script>
 </body>
-</html>
-"""
+</html>"""
 
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
-    """Serves the privacy-first Web GUI dashboard."""
+    """Serves the premium Web GUI dashboard (v2.1)."""
     return HTML_DASHBOARD

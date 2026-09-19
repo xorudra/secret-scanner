@@ -11,11 +11,18 @@ class TestRules(unittest.TestCase):
 
     def test_default_rules_load(self):
         rules = load_rules()
-        self.assertGreater(len(rules), 0)
+        self.assertGreaterEqual(len(rules), 30)
         rule_ids = [r.rule_id for r in rules]
         self.assertIn("aws_access_key", rule_ids)
         self.assertIn("github_token", rule_ids)
         self.assertIn("private_key", rule_ids)
+        self.assertIn("openai_api_key", rule_ids)
+        self.assertIn("gcp_api_key", rule_ids)
+        self.assertIn("azure_connection_string", rule_ids)
+        self.assertIn("slack_webhook", rule_ids)
+        self.assertIn("anthropic_key", rule_ids)
+        self.assertIn("huggingface_token", rule_ids)
+        self.assertIn("npm_token", rule_ids)
 
     def test_rule_extract_secret_with_group(self):
         rule = Rule(

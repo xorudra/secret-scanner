@@ -60,6 +60,30 @@ class TestEngine(unittest.TestCase):
             self.assertEqual(findings[0]["type"], "aws_access_key")
             self.assertEqual(findings[0]["severity"], "HIGH")
 
+    def test_detection_engine_openai_key(self):
+        engine = DetectionEngine()
+        sample = "OPENAI_API_KEY=sk-proj-abcde12345FGHIJ67890klmno12345pqrst67890UVWX"
+        findings = engine.scan(sample, file_path="config.py")
+        self.assertGreater(len(findings), 0)
+        self.assertEqual(findings[0].secret_type, "openai_api_key")
+        self.assertEqual(findings[0].severity, "HIGH")
+
+    def test_detection_engine_google_api_key(self):
+        engine = DetectionEngine()
+        sample = "GOOGLE_KEY=AIzaSy" + ("A" * 33)
+        findings = engine.scan(sample, file_path="app.json")
+        self.assertGreater(len(findings), 0)
+        self.assertEqual(findings[0].secret_type, "gcp_api_key")
+
+    def test_scan_path_multithreading(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dir_path = Path(temp_dir)
+            for i in range(5):
+                sub_file = dir_path / f"creds_{i}.env"
+                sub_file.write_text(f"AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMP{i:02d}\n", encoding="utf-8")
+            findings = scan_path(temp_dir, max_workers=4)
+            self.assertEqual(len(findings), 5)
+
     def test_scan_path_nonexistent(self):
         findings = scan_path("non_existent_folder_xyz_123")
         self.assertEqual(findings, [])

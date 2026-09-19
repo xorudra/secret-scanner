@@ -8,8 +8,9 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional
 
 from secret_scanner.core.detectors import shannon_entropy, fingerprint, mask_secret
 from secret_scanner.core.ignore import IgnoreFilter
@@ -23,7 +24,66 @@ TYPE_ANNOTATIONS = {
     "str", "int", "float", "bool", "bytes", "dict", "list", "set", "tuple",
     "any", "optional", "union", "callable", "sequence", "mapping", "iterable",
     "string", "boolean", "number", "void", "object", "array", "null", "undefined",
+    "none", "true", "false",
 }
+
+# Regex IDs that require an entropy check (generic patterns produce many FPs)
+_ENTROPY_CHECKED_RULES = frozenset({
+    "generic_api_key", "generic_secret", "password_assignment",
+})
+
+# Maximum number of worker threads for parallel file scanning
+_MAX_WORKERS = min(8, (os.cpu_count() or 1) + 2)
+
+# ---------------------------------------------------------------------------
+# Lazy-loaded module-level REGEX_PATTERNS (backward compat, parsed only once)
+# ---------------------------------------------------------------------------
+_cached_patterns: Optional[Dict[str, str]] = None
+
+
+def _get_regex_patterns() -> Dict[str, str]:
+    global _cached_patterns
+    if _cached_patterns is None:
+        _cached_patterns = {r.rule_id: r.pattern_raw for r in load_rules()}
+    return _cached_patterns
+
+
+# Module-level attribute for backward compat — computed lazily on first access
+class _LazyPatterns(dict):
+    """A dict subclass that loads rules lazily on first access."""
+    _loaded = False
+
+    def _ensure_loaded(self) -> None:
+        if not self._loaded:
+            self.update(_get_regex_patterns())
+            self._loaded = True
+
+    def __getitem__(self, key):
+        self._ensure_loaded()
+        return super().__getitem__(key)
+
+    def __iter__(self):
+        self._ensure_loaded()
+        return super().__iter__()
+
+    def __len__(self):
+        self._ensure_loaded()
+        return super().__len__()
+
+    def items(self):
+        self._ensure_loaded()
+        return super().items()
+
+    def values(self):
+        self._ensure_loaded()
+        return super().values()
+
+    def keys(self):
+        self._ensure_loaded()
+        return super().keys()
+
+
+REGEX_PATTERNS: Dict[str, str] = _LazyPatterns()
 
 
 class SecretFinding:
@@ -96,6 +156,7 @@ class DetectionEngine:
         """Filter out common false positives like python/typescript type signatures:
 
         e.g. `def test(secret: str) -> None:`, `password: Optional[str] = None`
+        Also catches env-var lookups like `token: str = os.environ[...]`
         """
         val_clean = secret_value.strip().strip("'\"").lower()
         if val_clean in TYPE_ANNOTATIONS:
@@ -103,7 +164,12 @@ class DetectionEngine:
 
         # If the match looks like a type declaration: `foo: str` or `foo: Optional[str]`
         if re.search(r":\s*(?:Optional\[)?(?:str|int|bool|float|bytes|Any|dict|list|string|boolean)\]?", matched_text, re.IGNORECASE):
-            # Check if there's no actual string literal assignment
+            # Check if there's no actual string literal assignment with a real value
+            if not re.search(r"=\s*['\"][^'\"]{8,}['\"]", matched_text):
+                return True
+
+        # Catch os.environ / os.getenv / config lookups — not hardcoded secrets
+        if re.search(r"os\.(?:environ|getenv)|config\[|settings\[|env\.get", line, re.IGNORECASE):
             if not re.search(r"=\s*['\"][^'\"]{8,}['\"]", matched_text):
                 return True
 
@@ -130,7 +196,13 @@ class DetectionEngine:
         if len(clean_line) > 160:
             clean_line = clean_line[:160] + "..."
         masked = mask_secret(secret_value)
-        return clean_line.replace(secret_value, masked)
+        # Use regex-safe replacement to correctly handle special chars in secret
+        try:
+            clean_line = re.sub(re.escape(secret_value), masked, clean_line, count=1)
+        except re.error:
+            # Fallback: plain string replace if re.escape has edge-case issues
+            clean_line = clean_line.replace(secret_value, masked, 1)
+        return clean_line
 
     def scan(
         self,
@@ -158,7 +230,7 @@ class DetectionEngine:
                         continue
 
                     # Entropy check for generic keys and passwords
-                    if rule.rule_id in ("generic_api_key", "generic_secret", "password_assignment"):
+                    if rule.rule_id in _ENTROPY_CHECKED_RULES:
                         entropy = shannon_entropy(secret_val)
                         if entropy < self.entropy_threshold:
                             continue
@@ -191,10 +263,6 @@ class DetectionEngine:
         return findings
 
 
-# Provide module-level REGEX_PATTERNS dictionary for backward compatibility with imports
-REGEX_PATTERNS: Dict[str, str] = {r.rule_id: r.pattern_raw for r in load_rules()}
-
-
 def is_binary_content(raw_bytes: bytes) -> bool:
     """Detect binary files by checking for null bytes in initial chunk."""
     return b"\x00" in raw_bytes[:8192]
@@ -206,7 +274,7 @@ def scan_file(path: str, engine: Optional[DetectionEngine] = None) -> List[Dict[
         p = Path(path)
         if not p.is_file():
             return []
-        
+
         # Read raw bytes to check for binary data
         with open(p, "rb") as fh:
             chunk = fh.read(8192)
@@ -226,25 +294,56 @@ def scan_path(
     target: os.PathLike | str,
     engine: Optional[DetectionEngine] = None,
     custom_rules_path: Optional[pathlib.Path | str] = None,
+    max_workers: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
-    """Recursively scan a file or directory for secrets, honoring .secretscannerignore."""
-    results: List[Dict[str, Any]] = []
+    """Recursively scan a file or directory for secrets, honoring .secretscannerignore.
+
+    Uses a thread-pool for parallel file I/O to speed up large directory scans.
+    """
     p = Path(target).resolve()
     if not p.exists():
         return []
 
+    # Create engine once — shared across all threads (DetectionEngine is read-only after init)
     active_engine = engine or DetectionEngine(custom_rules_path=custom_rules_path)
-    ignore_filter = IgnoreFilter(p / ".secretscannerignore" if p.is_dir() else None)
+
+    # Locate ignore file relative to the scan root
+    ignore_root = p if p.is_dir() else p.parent
+    ignore_filter = IgnoreFilter(ignore_root / ".secretscannerignore")
 
     if p.is_file():
         if not ignore_filter.is_ignored(p):
-            results.extend(scan_file(str(p), engine=active_engine))
-    elif p.is_dir():
-        for root, _dirs, files in os.walk(p):
-            # Prune ignored subdirectories in-place
-            _dirs[:] = [d for d in _dirs if not ignore_filter.is_ignored(Path(root) / d)]
-            for fname in files:
-                file_path = Path(root) / fname
-                if not ignore_filter.is_ignored(file_path):
-                    results.extend(scan_file(str(file_path), engine=active_engine))
+            return scan_file(str(p), engine=active_engine)
+        return []
+
+    # Collect all eligible file paths first (fast walk), then scan in parallel
+    file_paths: List[str] = []
+    for root, dirs, files in os.walk(p):
+        # Prune ignored subdirectories in-place to skip entire subtrees
+        dirs[:] = [
+            d for d in dirs
+            if not ignore_filter.is_ignored(Path(root) / d)
+        ]
+        for fname in files:
+            file_path = Path(root) / fname
+            if not ignore_filter.is_ignored(file_path):
+                file_paths.append(str(file_path))
+
+    if not file_paths:
+        return []
+
+    # Parallel scan using ThreadPoolExecutor
+    workers = max_workers if (max_workers is not None and max_workers > 0) else _MAX_WORKERS
+    results: List[Dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_to_path = {
+            executor.submit(scan_file, fp, active_engine): fp
+            for fp in file_paths
+        }
+        for future in as_completed(future_to_path):
+            try:
+                results.extend(future.result())
+            except Exception:
+                pass  # Silently skip files that error during scanning
+
     return results

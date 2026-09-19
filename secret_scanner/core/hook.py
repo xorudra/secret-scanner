@@ -11,6 +11,18 @@ import sys
 from typing import List
 
 from secret_scanner.core.engine import DetectionEngine
+from secret_scanner.core.ignore import IgnoreFilter
+
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 HOOK_SHELL_SCRIPT = """#!/bin/sh
@@ -93,9 +105,12 @@ def run_pre_commit_check(repo_path: pathlib.Path | None = None) -> int:
 
     print(f"🔍 SecretScanner: Checking {len(staged_files)} staged file(s) for secrets...")
     engine = DetectionEngine()
+    ignore_filter = IgnoreFilter(target_repo / ".secretscannerignore")
     total_findings = []
 
     for rel_path in staged_files:
+        if ignore_filter.is_ignored(pathlib.Path(rel_path)):
+            continue
         content = get_staged_content(target_repo, rel_path)
         if not content:
             continue

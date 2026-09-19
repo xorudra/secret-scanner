@@ -43,6 +43,11 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(res.findings[0]["type"], "aws_access_key")
         self.assertEqual(res.findings[0]["severity"], "HIGH")
 
+    def test_scan_text_payload_limit(self):
+        huge_payload = "A" * (2 * 1024 * 1024 + 10)
+        with self.assertRaises(ValueError):
+            ScanTextRequest(text=huge_payload)
+
     def test_report_export_endpoints(self):
         findings = [{
             "type": "aws_access_key",

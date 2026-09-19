@@ -34,13 +34,18 @@ def mask_secret(secret: str, keep_start: int = 4, keep_end: int = 4) -> str:
     """Produce a privacy-safe redacted representation of a secret string.
 
     Never exposes full credentials in logs, CLI, reports, or APIs.
+    Rules:
+    - <= 6 chars: fully masked
+    - 7–9 chars: show first 2 + *** + last 2
+    - >= 10 chars: show first 4 + ******** + last 4 (bounded by length)
     """
     if not secret:
         return ""
     length = len(secret)
-    if length <= 8:
+    if length <= 6:
         return "*" * length
-    prefix_len = min(keep_start, length // 3)
-    suffix_len = min(keep_end, length // 3)
-    mask_len = max(4, length - prefix_len - suffix_len)
-    return secret[:prefix_len] + ("*" * min(mask_len, 8)) + secret[-suffix_len:]
+    if length <= 9:
+        return secret[:2] + "***" + secret[-2:]
+    prefix_len = min(keep_start, max(1, length // 5))
+    suffix_len = min(keep_end, max(1, length // 5))
+    return secret[:prefix_len] + ("*" * 8) + secret[-suffix_len:]

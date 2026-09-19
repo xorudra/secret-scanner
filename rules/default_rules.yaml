@@ -1,5 +1,8 @@
 # Default secret detection rules for SecretScanner
 rules:
+
+  # ── Cloud Providers ──────────────────────────────────────────────────────
+
   - id: aws_access_key
     name: "AWS Access Key ID"
     pattern: "AKIA[0-9A-Z]{16}"
@@ -11,6 +14,32 @@ rules:
     pattern: "(?i)aws_secret_access_key\\s*[=:]\\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?"
     severity: "HIGH"
     description: "Identifies AWS secret access key assignments."
+
+  - id: gcp_api_key
+    name: "Google Cloud / GCP API Key"
+    pattern: "AIza[0-9A-Za-z\\-_]{35}"
+    severity: "HIGH"
+    description: "Matches Google Cloud Platform / Firebase API keys."
+
+  - id: gcp_service_account
+    name: "Google Service Account JSON Key"
+    pattern: "(?i)\"type\":\\s*\"service_account\""
+    severity: "CRITICAL"
+    description: "Detects embedded Google service account credential JSON blobs."
+
+  - id: azure_connection_string
+    name: "Azure Storage / Service Bus Connection String"
+    pattern: "(?i)DefaultEndpointsProtocol=https?;AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{44,}"
+    severity: "CRITICAL"
+    description: "Matches Azure Storage or Service Bus connection strings with embedded keys."
+
+  - id: azure_sas_token
+    name: "Azure SAS Token"
+    pattern: "(?i)(?:sig|sv)=[A-Za-z0-9%+/=]{20,}&?(?:se|st|sp|sr)="
+    severity: "HIGH"
+    description: "Matches Azure Shared Access Signature tokens."
+
+  # ── Source Control Tokens ─────────────────────────────────────────────────
 
   - id: github_token
     name: "GitHub Personal Access Token"
@@ -30,11 +59,33 @@ rules:
     severity: "HIGH"
     description: "Matches GitLab personal access tokens."
 
+  # ── Messaging & Collaboration ─────────────────────────────────────────────
+
   - id: slack_token
     name: "Slack API Token"
     pattern: "xox[baprs]-[0-9A-Za-z\\-]{10,}"
     severity: "HIGH"
     description: "Matches Slack bot, app, and user authentication tokens."
+
+  - id: slack_webhook
+    name: "Slack Webhook URL"
+    pattern: "https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+"
+    severity: "HIGH"
+    description: "Matches Slack incoming webhook URLs which allow posting messages to channels."
+
+  - id: discord_token
+    name: "Discord Bot Token"
+    pattern: "[MN][A-Za-z\\d]{23}\\.[\\w-]{6}\\.[\\w-]{27}"
+    severity: "HIGH"
+    description: "Matches Discord bot authentication tokens."
+
+  - id: telegram_bot_token
+    name: "Telegram Bot API Token"
+    pattern: "\\d{8,10}:[A-Za-z0-9_-]{35}"
+    severity: "HIGH"
+    description: "Matches Telegram Bot API tokens."
+
+  # ── Payment Processors ────────────────────────────────────────────────────
 
   - id: stripe_key
     name: "Stripe API Key"
@@ -42,11 +93,91 @@ rules:
     severity: "HIGH"
     description: "Matches Stripe live and test secret/restricted API keys."
 
+  - id: paypal_client_secret
+    name: "PayPal Client Secret"
+    pattern: "(?i)paypal[_-]?(?:client[_-]?secret|secret[_-]?key)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-]{30,})['\"]?"
+    severity: "HIGH"
+    description: "Matches PayPal client secret variable assignments."
+
+  # ── Communication APIs ────────────────────────────────────────────────────
+
+  - id: twilio_auth_token
+    name: "Twilio Auth Token"
+    pattern: "(?i)(?:twilio[_-]?)?auth[_-]?token\\s*[=:]\\s*['\"]?([a-f0-9]{32})['\"]?"
+    severity: "HIGH"
+    description: "Matches Twilio account authentication tokens."
+
+  - id: twilio_account_sid
+    name: "Twilio Account SID"
+    pattern: "AC[a-f0-9]{32}"
+    severity: "MEDIUM"
+    description: "Matches Twilio account SIDs (used with auth token)."
+
+  - id: sendgrid_key
+    name: "SendGrid API Key"
+    pattern: "SG\\.[A-Za-z0-9\\-_]{22,}\\.[A-Za-z0-9\\-_]{43,}"
+    severity: "HIGH"
+    description: "Matches SendGrid API keys."
+
+  - id: mailgun_key
+    name: "Mailgun API Key"
+    pattern: "key-[0-9a-zA-Z]{32}"
+    severity: "HIGH"
+    description: "Matches Mailgun private API keys."
+
+  # ── AI / ML Services ─────────────────────────────────────────────────────
+
+  - id: openai_api_key
+    name: "OpenAI API Key"
+    pattern: "sk-(?:proj-)?[A-Za-z0-9\\-_]{32,}"
+    severity: "HIGH"
+    description: "Matches OpenAI API secret keys."
+
+  - id: anthropic_key
+    name: "Anthropic / Claude API Key"
+    pattern: "sk-ant-[A-Za-z0-9\\-_]{95,}"
+    severity: "HIGH"
+    description: "Matches Anthropic Claude API keys."
+
+  - id: huggingface_token
+    name: "HuggingFace API Token"
+    pattern: "hf_[A-Za-z0-9]{34,}"
+    severity: "HIGH"
+    description: "Matches HuggingFace user access tokens."
+
+  # ── Infrastructure & DevOps ───────────────────────────────────────────────
+
+  - id: cloudflare_token
+    name: "Cloudflare API Token"
+    pattern: "(?i)cloudflare[_-]?(?:api[_-]?)?token\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-]{40,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Cloudflare API tokens."
+
+  - id: npm_token
+    name: "npm Access Token"
+    pattern: "(?:npm_|//registry\\.npmjs\\.org/:_authToken=)[A-Za-z0-9]{36,}"
+    severity: "HIGH"
+    description: "Matches npm publish/read tokens used in .npmrc and CI configs."
+
+  - id: doppler_token
+    name: "Doppler Service Token"
+    pattern: "dp\\.st\\.[A-Za-z0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Doppler service tokens for secrets management."
+
   - id: private_key
     name: "RSA/OPENSSH/EC Private Key"
     pattern: "-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----"
     severity: "CRITICAL"
     description: "Matches unencrypted cryptographic private keys."
+
+  - id: ssh_private_key_body
+    name: "PEM Private Key Body"
+    pattern: "-----BEGIN CERTIFICATE-----"
+    severity: "MEDIUM"
+    description: "Matches embedded TLS/SSL certificates (may contain private material)."
+
+  # ── Generic Patterns ──────────────────────────────────────────────────────
 
   - id: generic_api_key
     name: "Generic API Key"
@@ -68,7 +199,7 @@ rules:
 
   - id: database_url
     name: "Database Connection String"
-    pattern: "(?i)(?:postgres|postgresql|mysql|mongodb(?:\\+srv)?|redis):\\/\\/\\S+:\\S+@\\S+"
+    pattern: "(?i)(?:postgres|postgresql|mysql|mongodb(?:\\+srv)?|redis|mssql|sqlserver):\\/\\/\\S+:\\S+@\\S+"
     severity: "HIGH"
     description: "Matches database connection URIs containing embedded credentials."
 
@@ -77,3 +208,9 @@ rules:
     pattern: "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"
     severity: "MEDIUM"
     description: "Matches raw JSON Web Tokens."
+
+  - id: bearer_token
+    name: "Bearer Authorization Token"
+    pattern: "(?i)Authorization:\\s*Bearer\\s+([A-Za-z0-9\\-_\\.~+/]{20,})"
+    severity: "MEDIUM"
+    description: "Matches hardcoded Bearer Authorization header values."

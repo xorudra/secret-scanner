@@ -160,6 +160,10 @@ def scan_repository(
     """Scan a local Git repository or remote Git URL across commits for potential secrets.
 
     Returns a list of finding dictionaries enriched with commit metadata.
+
+    Note: For remote URLs, the repository is cloned fully (no shallow clone) so that
+    the complete commit history is available. ``max_commits`` controls how many commits
+    are *scanned*, not the clone depth.
     """
     repo_str = str(repo_path).strip()
 
@@ -168,7 +172,9 @@ def scan_repository(
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             try:
-                repo = clone_repository(repo_str, temp_path, depth=max_commits)
+                # Always do a full clone so that all commits are available for scanning.
+                # max_commits limits how many are processed, not clone depth.
+                repo = clone_repository(repo_str, temp_path, depth=None)
             except Exception as e:
                 raise RuntimeError(f"Failed to clone remote repository '{repo_str}': {e}") from e
 

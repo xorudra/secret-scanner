@@ -34,10 +34,30 @@ class TestReporterAndIgnore(unittest.TestCase):
         self.assertIn("SecretScanner Security Audit Report", md_out)
         self.assertIn("aws_secret_key", md_out)
 
+    def test_markdown_report_low_severity(self):
+        findings = [{
+            "type": "custom_rule",
+            "file": "config.py",
+            "line": 5,
+            "col": 1,
+            "score": 0.3,
+            "severity": "LOW",
+            "fingerprint": "xyz789",
+            "masked_value": "test***",
+            "context": "test***"
+        }]
+        md_out = generate_markdown_report(findings, target_path=".")
+        self.assertIn("🔵 **LOW**", md_out)
+        self.assertNotIn("🟡 **MEDIUM**", md_out)
+
     def test_ignore_filter(self):
         filt = IgnoreFilter()
         self.assertTrue(filt.is_ignored(pathlib.Path("node_modules/package.json")))
         self.assertTrue(filt.is_ignored(pathlib.Path(".venv/lib/site.py")))
+        self.assertTrue(filt.is_ignored(pathlib.Path("package-lock.json")))
+        self.assertTrue(filt.is_ignored(pathlib.Path("poetry.lock")))
+        self.assertTrue(filt.is_ignored(pathlib.Path("Cargo.lock")))
+        self.assertTrue(filt.is_ignored(pathlib.Path(".git/objects/abc")))
         self.assertFalse(filt.is_ignored(pathlib.Path("app/main.py")))
 
 

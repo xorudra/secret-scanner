@@ -202,7 +202,12 @@ def generate_markdown_report(findings: List[Dict[str, Any]], target_path: str = 
     else:
         for f in findings:
             sev = f.get("severity", "MEDIUM").upper()
-            sev_icon = "🟣 **CRITICAL**" if sev == "CRITICAL" else ("🔴 **HIGH**" if sev == "HIGH" else "🟡 **MEDIUM**")
+            sev_icon = (
+                "🟣 **CRITICAL**" if sev == "CRITICAL"
+                else "🔴 **HIGH**" if sev == "HIGH"
+                else "🟡 **MEDIUM**" if sev == "MEDIUM"
+                else "🔵 **LOW**"
+            )
             rule_name = f.get("rule_name") or f.get("type")
             file_loc = f.get("file", "")
             loc = f"L{f.get('line', 1)}:C{f.get('col', 1)}"
