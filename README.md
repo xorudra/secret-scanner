@@ -162,7 +162,7 @@ python -m secret_scanner --uninstall-hook
 
 ### 5️⃣ “Reporting & Export” – what formats are available
 
-```markdown
+markdown
 ## 📊 Reporting & Export
 
 After a scan finishes you can download the results in any of the following formats:
@@ -175,11 +175,11 @@ After a scan finishes you can download the results in any of the following forma
 | **JSON** | CI pipelines – pipe the JSON directly to other tools or to a “fail‑on‑findings” step. |
 
 All reports contain the same fields shown in the dashboard (file, line, rule, severity, risk score, masked value, and optional Git metadata).  
-```
+
 
 ### 7️⃣ “Contributing” – short guide
 
-```markdown
+markdown
 ## 🤝 Contributing
 
 Contributions are welcome! Here’s how to get started:
@@ -188,7 +188,7 @@ Contributions are welcome! Here’s how to get started:
 2. Run `.\setup_project.ps1` to create the virtual environment.  
 3. Make your changes (e.g., add a new detection rule or improve the UI).  
 4. Run the test suite to ensure everything passes:  
-```
+
    ```powershell
    python -m unittest discover tests
 ```
