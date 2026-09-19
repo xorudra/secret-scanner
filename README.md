@@ -188,9 +188,9 @@ Contributions are welcome! Here’s how to get started:
    python -m unittest discover tests
 ```
 
-### 8️⃣ “License” – keep the standard MIT notice (if you haven’t added it yet)
+### 📄 “License” – keep the standard MIT notice (if you haven’t added it yet)
 
 ```markdown
-## 📄 License
+## License
 ```
 This project is licensed under the **MIT License** – see the `LICENSE` file for details.
