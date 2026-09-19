@@ -16,12 +16,18 @@
 
 ## 🛠️ Quick Start
 
-### 1. Setup Environment
+### 1. Change your Default PowerShell Directory to "secret_scanner" Folder Directory (Example) :
+
+```powershell
+cd "C:\Users\<YourName>\Downloads\secret-scanner"
+```
+
+### 2. Setup Environment
 ```powershell
 .\setup_project.ps1
 ```
 
-### 2. Launch the Web Dashboard
+### 3. Launch the Web Dashboard
 ```powershell
 python -m secret_scanner
 ```
