@@ -19,4 +19,4 @@ dependencies = [
 include = ["secret_scanner*"]
 
 [project.scripts]
-secret-scanner = "secret_scanner.core.scanner:main"
+secret-scanner = "secret_scanner.__main__:main"
