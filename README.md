@@ -162,7 +162,6 @@ python -m secret_scanner --uninstall-hook
 
 ### 5️⃣ “Reporting & Export” – what formats are available
 
-markdown
 ## 📊 Reporting & Export
 
 After a scan finishes you can download the results in any of the following formats:
@@ -189,7 +188,7 @@ Contributions are welcome! Here’s how to get started:
 3. Make your changes (e.g., add a new detection rule or improve the UI).  
 4. Run the test suite to ensure everything passes:  
 
-   ```powershell
+```powershell
    python -m unittest discover tests
 ```
 
