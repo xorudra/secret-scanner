@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secret_scanner"
+version = "0.1.0"
+description = "Privacy-first secret and credential leak detection utility"
+requires-python = ">=3.10"
+authors = [{name = "Rudra Singh"}]
+dependencies = [
+    "gitpython",
+    "fastapi",
+    "uvicorn[standard]",
+    "pyyaml>=6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["secret_scanner*"]
+
+[project.scripts]
+secret-scanner = "secret_scanner.core.scanner:main"

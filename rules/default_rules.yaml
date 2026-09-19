@@ -1,0 +1,79 @@
+# Default secret detection rules for SecretScanner
+rules:
+  - id: aws_access_key
+    name: "AWS Access Key ID"
+    pattern: "AKIA[0-9A-Z]{16}"
+    severity: "HIGH"
+    description: "Identifies standard AWS IAM user access key identifiers."
+
+  - id: aws_secret_key
+    name: "AWS Secret Access Key"
+    pattern: "(?i)aws_secret_access_key\\s*[=:]\\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?"
+    severity: "HIGH"
+    description: "Identifies AWS secret access key assignments."
+
+  - id: github_token
+    name: "GitHub Personal Access Token"
+    pattern: "gh[pousr]_[A-Za-z0-9_]{36,}"
+    severity: "HIGH"
+    description: "Matches classic GitHub personal access, OAuth, user, and refresh tokens."
+
+  - id: github_fine_grained
+    name: "GitHub Fine-Grained Token"
+    pattern: "github_pat_[0-9a-zA-Z_]{82}"
+    severity: "HIGH"
+    description: "Matches GitHub fine-grained personal access tokens."
+
+  - id: gitlab_token
+    name: "GitLab Personal Access Token"
+    pattern: "glpat-[0-9a-zA-Z_\\-]{20,}"
+    severity: "HIGH"
+    description: "Matches GitLab personal access tokens."
+
+  - id: slack_token
+    name: "Slack API Token"
+    pattern: "xox[baprs]-[0-9A-Za-z\\-]{10,}"
+    severity: "HIGH"
+    description: "Matches Slack bot, app, and user authentication tokens."
+
+  - id: stripe_key
+    name: "Stripe API Key"
+    pattern: "(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,}"
+    severity: "HIGH"
+    description: "Matches Stripe live and test secret/restricted API keys."
+
+  - id: private_key
+    name: "RSA/OPENSSH/EC Private Key"
+    pattern: "-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----"
+    severity: "CRITICAL"
+    description: "Matches unencrypted cryptographic private keys."
+
+  - id: generic_api_key
+    name: "Generic API Key"
+    pattern: "(?i)(?:api[_-]?key|apikey)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{16,})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches generic API key variable assignments."
+
+  - id: generic_secret
+    name: "Generic Secret Key"
+    pattern: "(?i)(?:secret[_-]?key|client[_-]?secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{16,})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches secret key or client secret variable assignments."
+
+  - id: password_assignment
+    name: "Hardcoded Password"
+    pattern: "(?i)(?:password|passwd|pwd)\\s*[=:]\\s*['\"]([^'\"\\s]{8,})['\"]"
+    severity: "MEDIUM"
+    description: "Matches explicit hardcoded password assignments in quotes."
+
+  - id: database_url
+    name: "Database Connection String"
+    pattern: "(?i)(?:postgres|postgresql|mysql|mongodb(?:\\+srv)?|redis):\\/\\/\\S+:\\S+@\\S+"
+    severity: "HIGH"
+    description: "Matches database connection URIs containing embedded credentials."
+
+  - id: jwt_token
+    name: "JSON Web Token (JWT)"
+    pattern: "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"
+    severity: "MEDIUM"
+    description: "Matches raw JSON Web Tokens."
