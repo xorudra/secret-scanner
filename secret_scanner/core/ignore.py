@@ -6,14 +6,12 @@ from __future__ import annotations
 
 import fnmatch
 import pathlib
-from typing import List
-
 
 # Default patterns applied regardless of .secretscannerignore file.
 # These use fnmatch glob syntax and are matched against:
 #  - the file/dir basename (e.g. "node_modules")
 #  - the full normalised path string (e.g. "project/node_modules/lodash/index.js")
-DEFAULT_IGNORE_PATTERNS: List[str] = [
+DEFAULT_IGNORE_PATTERNS: list[str] = [
     # Version control
     ".git",
     # Dependency directories
@@ -80,7 +78,7 @@ class IgnoreFilter:
     """Filters out paths based on default and custom ignore patterns."""
 
     def __init__(self, ignore_file_path: pathlib.Path | None = None):
-        self.patterns: List[str] = list(DEFAULT_IGNORE_PATTERNS)
+        self.patterns: list[str] = list(DEFAULT_IGNORE_PATTERNS)
 
         if ignore_file_path and ignore_file_path.exists():
             try:
@@ -88,7 +86,7 @@ class IgnoreFilter:
                     line = line.strip()
                     if line and not line.startswith("#"):
                         self.patterns.append(line)
-            except Exception:
+            except OSError:
                 pass
 
     def is_ignored(self, path: pathlib.Path | str) -> bool:

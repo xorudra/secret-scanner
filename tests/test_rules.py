@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from secret_scanner.core.rules import Rule, load_rules, DEFAULT_RULES_PATH
+from secret_scanner.core.rules import Rule, load_rules
 
 
 class TestRules(unittest.TestCase):

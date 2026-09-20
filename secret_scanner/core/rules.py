@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pathlib
 import re
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 DEFAULT_RULES_PATH = pathlib.Path(__file__).parent.parent.parent / "rules" / "default_rules.yaml"
 
@@ -41,7 +41,7 @@ class Rule:
                     return g
         return match.group(0)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert rule metadata to dictionary representation."""
         return {
             "id": self.rule_id,
@@ -70,10 +70,10 @@ FALLBACK_RULE_DEFS = [
 ]
 
 
-def load_rules(custom_rules_path: pathlib.Path | str | None = None) -> List[Rule]:
+def load_rules(custom_rules_path: pathlib.Path | str | None = None) -> list[Rule]:
     """Load detection rules from a YAML file or use the embedded fallback definitions."""
     target_path = pathlib.Path(custom_rules_path) if custom_rules_path else DEFAULT_RULES_PATH
-    rules: List[Rule] = []
+    rules: list[Rule] = []
 
     if target_path.exists() and target_path.is_file():
         try:
@@ -92,7 +92,7 @@ def load_rules(custom_rules_path: pathlib.Path | str | None = None) -> List[Rule
                     ))
                 if rules:
                     return rules
-        except Exception:
+        except (OSError, ImportError, yaml.YAMLError):
             pass
 
     # Fallback to defaults

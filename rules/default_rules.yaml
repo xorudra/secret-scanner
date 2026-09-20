@@ -145,6 +145,24 @@ rules:
     severity: "HIGH"
     description: "Matches HuggingFace user access tokens."
 
+  - id: cohere_api_key
+    name: "Cohere API Key"
+    pattern: "[a-zA-Z0-9]{32,}-[a-zA-Z0-9]{16,}"
+    severity: "HIGH"
+    description: "Matches Cohere API keys."
+
+  - id: replicate_api_token
+    name: "Replicate API Token"
+    pattern: "r8_[A-Za-z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Replicate API tokens."
+
+  - id: pinecone_api_key
+    name: "Pinecone API Key"
+    pattern: "[a-zA-Z0-9]{32,}-[a-zA-Z0-9]{10,}"
+    severity: "HIGH"
+    description: "Matches Pinecone vector database API keys."
+
   # ── Infrastructure & DevOps ───────────────────────────────────────────────
 
   - id: cloudflare_token
@@ -165,6 +183,90 @@ rules:
     severity: "HIGH"
     description: "Matches Doppler service tokens for secrets management."
 
+  - id: vercel_token
+    name: "Vercel Access Token"
+    pattern: "[a-zA-Z0-9]{20,}_[a-zA-Z0-9]{20,}"
+    severity: "HIGH"
+    description: "Matches Vercel access tokens."
+
+  - id: netlify_token
+    name: "Netlify Auth Token"
+    pattern: "nfp_[A-Za-z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Netlify personal access tokens."
+
+  - id: railway_token
+    name: "Railway API Token"
+    pattern: "railway_[a-zA-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Railway API tokens."
+
+  - id: render_token
+    name: "Render API Key"
+    pattern: "rnd_[a-zA-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Render API keys."
+
+  - id: flyio_token
+    name: "Fly.io API Token"
+    pattern: "fly_[a-zA-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Fly.io API tokens."
+
+  - id: digitalocean_token
+    name: "DigitalOcean API Token"
+    pattern: "dop_v1_[a-zA-Z0-9]{48,}"
+    severity: "HIGH"
+    description: "Matches DigitalOcean personal access tokens."
+
+  - id: linode_token
+    name: "Linode API Token"
+    pattern: "[a-f0-9]{64}"
+    severity: "HIGH"
+    description: "Matches Linode API tokens."
+
+  - id: heroku_api_key
+    name: "Heroku API Key"
+    pattern: "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+    severity: "HIGH"
+    description: "Matches Heroku API keys (UUID format)."
+
+  - id: atlas_api_key
+    name: "MongoDB Atlas API Key"
+    pattern: "atlas_[a-zA-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches MongoDB Atlas API keys."
+
+  - id: snowflake_private_key
+    name: "Snowflake Private Key"
+    pattern: "-----BEGIN (?:RSA |EC )?PRIVATE KEY-----\\s*Proc-Type: 4,ENCRYPTED"
+    severity: "CRITICAL"
+    description: "Matches Snowflake encrypted private keys."
+
+  - id: databricks_token
+    name: "Databricks Access Token"
+    pattern: "dapi[a-f0-9]{16,}"
+    severity: "HIGH"
+    description: "Matches Databricks personal access tokens."
+
+  - id: kubernetes_config
+    name: "Kubernetes Config with Credentials"
+    pattern: "(?i)(?:client-certificate-data|client-key-data|token):\\s*[A-Za-z0-9+/=]{20,}"
+    severity: "HIGH"
+    description: "Matches Kubernetes config files with embedded credentials."
+
+  - id: terraform_token
+    name: "Terraform Cloud/Enterprise Token"
+    pattern: "tfp_[a-zA-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches Terraform Cloud API tokens."
+
+  - id: vault_token
+    name: "HashiCorp Vault Token"
+    pattern: "(?:hvs\\.|s\\.)[A-Za-z0-9\\-_.]{20,}"
+    severity: "HIGH"
+    description: "Matches HashiCorp Vault tokens (service and batch)."
+
   - id: private_key
     name: "RSA/OPENSSH/EC Private Key"
     pattern: "-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----"
@@ -176,6 +278,18 @@ rules:
     pattern: "-----BEGIN CERTIFICATE-----"
     severity: "MEDIUM"
     description: "Matches embedded TLS/SSL certificates (may contain private material)."
+
+  - id: ssh_rsa_private_key
+    name: "SSH RSA Private Key"
+    pattern: "-----BEGIN OPENSSH PRIVATE KEY-----"
+    severity: "CRITICAL"
+    description: "Matches OpenSSH private key format."
+
+  - id: pgp_private_key
+    name: "PGP Private Key"
+    pattern: "-----BEGIN PGP PRIVATE KEY BLOCK-----"
+    severity: "CRITICAL"
+    description: "Matches PGP/GPG private key blocks."
 
   # ── Generic Patterns ──────────────────────────────────────────────────────
 
@@ -214,3 +328,45 @@ rules:
     pattern: "(?i)Authorization:\\s*Bearer\\s+([A-Za-z0-9\\-_\\.~+/]{20,})"
     severity: "MEDIUM"
     description: "Matches hardcoded Bearer Authorization header values."
+
+  - id: basic_auth
+    name: "Basic Auth Credentials"
+    pattern: "(?i)Authorization:\\s*Basic\\s+[A-Za-z0-9+/=]{20,}"
+    severity: "HIGH"
+    description: "Matches hardcoded Basic Authorization header values."
+
+  - id: oauth_client_secret
+    name: "OAuth Client Secret"
+    pattern: "(?i)(?:client[_-]?secret|oauth[_-]?secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches OAuth client secret variable assignments."
+
+  - id: webhook_secret
+    name: "Webhook Secret/Signing Key"
+    pattern: "(?i)(?:webhook[_-]?(?:secret|key|signing[_-]?key)|signing[_-]?secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches webhook signing secrets."
+
+  - id: encryption_key
+    name: "Encryption/Decryption Key"
+    pattern: "(?i)(?:encryption[_-]?key|decryption[_-]?key|cipher[_-]?key|aes[_-]?key)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~+/=]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches encryption key variable assignments."
+
+  - id: ssh_password
+    name: "SSH Password in Config"
+    pattern: "(?i)(?:ssh[_-]?password|sshpass)\\s*[=:]\\s*['\"]?([^'\"\\s]{4,})['\"]?"
+    severity: "HIGH"
+    description: "Matches SSH password assignments."
+
+  - id: redis_password
+    name: "Redis Password"
+    pattern: "(?i)(?:redis[_-]?password|redis[_-]?auth)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{8,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Redis password/auth variable assignments."
+
+  - id: elasticsearch_password
+    name: "Elasticsearch Password"
+    pattern: "(?i)(?:elasticsearch[_-]?password|es[_-]?password)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{8,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Elasticsearch password assignments."

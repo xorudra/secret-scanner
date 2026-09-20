@@ -4,11 +4,9 @@ Installs and executes a Git pre-commit hook to prevent secret leaks before they 
 
 from __future__ import annotations
 
-import os
 import pathlib
 import subprocess
 import sys
-from typing import List
 
 from secret_scanner.core.engine import DetectionEngine
 from secret_scanner.core.ignore import IgnoreFilter
@@ -16,12 +14,12 @@ from secret_scanner.core.ignore import IgnoreFilter
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     try:
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
 
@@ -52,7 +50,7 @@ exit 0
 """
 
 
-def get_staged_files(repo_path: pathlib.Path) -> List[str]:
+def get_staged_files(repo_path: pathlib.Path) -> list[str]:
     """Retrieve list of staged file paths from git."""
     try:
         proc = subprocess.run(
@@ -63,7 +61,7 @@ def get_staged_files(repo_path: pathlib.Path) -> List[str]:
             check=True,
         )
         return [f.strip() for f in proc.stdout.splitlines() if f.strip()]
-    except Exception:
+    except (subprocess.CalledProcessError, OSError):
         return []
 
 
@@ -81,13 +79,13 @@ def get_staged_content(repo_path: pathlib.Path, rel_path: str) -> str:
         if b"\x00" in proc.stdout[:8192]:
             return ""
         return proc.stdout.decode("utf-8", errors="ignore")
-    except Exception:
+    except (subprocess.CalledProcessError, OSError):
         # Fallback to local file if not yet committed
         local_file = repo_path / rel_path
         if local_file.is_file():
             try:
                 return local_file.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
+            except OSError:
                 return ""
         return ""
 
@@ -141,7 +139,7 @@ def install_pre_commit_hook(repo_path: pathlib.Path | None = None) -> bool:
         print(f"Initializing Git repository in {target_repo}...")
         try:
             subprocess.run(["git", "init", str(target_repo)], check=True, capture_output=True)
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             print(f"[ERROR] Could not initialize Git repo: {e}", file=sys.stderr)
             return False
 
@@ -152,11 +150,11 @@ def install_pre_commit_hook(repo_path: pathlib.Path | None = None) -> bool:
         hook_file.write_text(HOOK_SHELL_SCRIPT, encoding="utf-8")
         try:
             hook_file.chmod(0o755)
-        except Exception:
+        except OSError:
             pass
         print(f"Git pre-commit hook successfully installed at: {hook_file}")
         return True
-    except Exception as e:
+    except OSError as e:
         print(f"[ERROR] Failed to install pre-commit hook: {e}", file=sys.stderr)
         return False
 

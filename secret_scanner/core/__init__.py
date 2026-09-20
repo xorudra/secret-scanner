@@ -1,12 +1,12 @@
 """secret_scanner.core — scanning engine and detection utilities."""
 
+from .detectors import fingerprint, shannon_entropy
 from .engine import DetectionEngine, SecretFinding, scan_path
-from .detectors import shannon_entropy, fingerprint
 
 __all__ = [
     "DetectionEngine",
     "SecretFinding",
+    "fingerprint",
     "scan_path",
     "shannon_entropy",
-    "fingerprint",
 ]

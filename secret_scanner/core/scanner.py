@@ -28,7 +28,7 @@ import argparse
 import json
 import pathlib
 import sys
-from typing import Any, List, Dict
+from typing import Any
 
 # Ensure UTF-8 output on Windows consoles
 if sys.platform == "win32":
@@ -37,17 +37,17 @@ if sys.platform == "win32":
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         if sys.stderr and hasattr(sys.stderr, "reconfigure"):
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
-from secret_scanner.core.engine import scan_path, DetectionEngine
+from secret_scanner.core.engine import DetectionEngine, scan_path
 from secret_scanner.core.hook import install_pre_commit_hook
 from secret_scanner.core.reporter import (
     generate_html_report,
     generate_markdown_report,
     generate_sarif_report,
 )
-from secret_scanner.git_scanner import scan_repository, is_git_url
+from secret_scanner.git_scanner import is_git_url, scan_repository
 
 
 def print_cli_banner() -> None:
@@ -57,7 +57,7 @@ def print_cli_banner() -> None:
     print("=" * 70)
 
 
-def format_terminal_findings(findings: List[Dict[str, Any]]) -> None:
+def format_terminal_findings(findings: list[dict[str, Any]]) -> None:
     """Display finding records clearly on standard output."""
     if not findings:
         print("\n[CLEAN] No secrets or leaked credentials detected.\n")
@@ -188,7 +188,7 @@ def main() -> None:
                 engine=engine,
                 custom_rules_path=custom_rules_path,
             )
-        except Exception as err:
+        except (OSError, ValueError, RuntimeError) as err:
             print(f"[ERROR] Git scan failed: {err}", file=sys.stderr)
             sys.exit(1)
         scan_target_str = f"git:{git_target_input}"

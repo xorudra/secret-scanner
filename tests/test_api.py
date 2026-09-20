@@ -7,18 +7,17 @@ import unittest
 from fastapi import HTTPException
 
 from secret_scanner.api.app import (
-    health,
-    get_rules,
-    scan_text,
-    ScanTextRequest,
-    scan_git,
+    ReportExportRequest,
     ScanGitRequest,
+    ScanTextRequest,
     export_html_report,
     export_markdown_report,
     export_sarif_report,
-    ReportExportRequest,
+    get_rules,
+    health,
+    scan_git,
+    scan_text,
 )
-
 
 
 class TestAPI(unittest.TestCase):
@@ -79,6 +78,7 @@ class TestAPI(unittest.TestCase):
     def test_scan_git_endpoint(self):
         import tempfile
         from pathlib import Path
+
         import git
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)

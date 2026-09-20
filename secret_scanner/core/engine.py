@@ -9,15 +9,17 @@ import os
 import pathlib
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-from secret_scanner.core.detectors import shannon_entropy, fingerprint, mask_secret
+from secret_scanner.core.detectors import fingerprint, mask_secret, shannon_entropy
 from secret_scanner.core.ignore import IgnoreFilter
 from secret_scanner.core.rules import Rule, load_rules
 
 # Character set commonly used in base64/hex tokens for entropy filtering
 ENTROPY_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=-_.~"
+ENTROPY_CHAR_SET = frozenset(ENTROPY_CHARS)
 
 # Common programming language type names that trigger false positives in assignments
 TYPE_ANNOTATIONS = {
@@ -35,13 +37,30 @@ _ENTROPY_CHECKED_RULES = frozenset({
 # Maximum number of worker threads for parallel file scanning
 _MAX_WORKERS = min(8, (os.cpu_count() or 1) + 2)
 
+# Pre-compiled regex patterns for false positive detection
+_TYPE_ANNOTATION_PATTERN = re.compile(
+    r":\s*(?:Optional\[)?(?:str|int|bool|float|bytes|Any|dict|list|string|boolean)\]?",
+    re.IGNORECASE
+)
+_STRING_LITERAL_PATTERN = re.compile(r"=\s*['\"][^'\"]{8,}['\"]")
+_ENV_LOOKUP_PATTERN = re.compile(r"os\.(?:environ|getenv)|config\[|settings\[|env\.get", re.IGNORECASE)
+
+# Binary file detection - additional heuristics
+_BINARY_EXTENSIONS = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".woff", ".woff2",
+    ".ttf", ".eot", ".zip", ".tar", ".gz", ".bz2", ".xz", ".rar", ".7z",
+    ".exe", ".dll", ".so", ".dylib", ".class", ".jar", ".pyc", ".pyo",
+    ".min.js", ".min.css", ".map", ".lock", ".pdf", ".doc", ".docx",
+    ".xls", ".xlsx", ".ppt", ".pptx", ".bin", ".dat", ".db", ".sqlite",
+})
+
 # ---------------------------------------------------------------------------
 # Lazy-loaded module-level REGEX_PATTERNS (backward compat, parsed only once)
 # ---------------------------------------------------------------------------
-_cached_patterns: Optional[Dict[str, str]] = None
+_cached_patterns: dict[str, str] | None = None
 
 
-def _get_regex_patterns() -> Dict[str, str]:
+def _get_regex_patterns() -> dict[str, str]:
     global _cached_patterns
     if _cached_patterns is None:
         _cached_patterns = {r.rule_id: r.pattern_raw for r in load_rules()}
@@ -83,7 +102,7 @@ class _LazyPatterns(dict):
         return super().keys()
 
 
-REGEX_PATTERNS: Dict[str, str] = _LazyPatterns()
+REGEX_PATTERNS: dict[str, str] = _LazyPatterns()
 
 
 class SecretFinding:
@@ -100,7 +119,7 @@ class SecretFinding:
         rule_name: str = "",
         severity: str = "MEDIUM",
         context: str = "",
-        commit_info: Optional[Dict[str, Any]] = None,
+        commit_info: dict[str, Any] | None = None,
     ):
         self.secret_type = secret_type
         self.value = value
@@ -115,9 +134,9 @@ class SecretFinding:
         self.context = context or self.masked_value
         self.commit_info = commit_info or {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize finding to a dictionary without exposing raw secrets."""
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "type": self.secret_type,
             "rule_name": self.rule_name,
             "severity": self.severity,
@@ -134,22 +153,29 @@ class SecretFinding:
         return data
 
 
+@lru_cache(maxsize=1024)
+def _cached_shannon_entropy(value: str) -> float:
+    """Cached Shannon entropy calculation."""
+    filtered_chars = "".join(c for c in value if c in ENTROPY_CHAR_SET)
+    return shannon_entropy(filtered_chars) if filtered_chars else 0.0
+
+
 class DetectionEngine:
     """Engine that scans text using compiled rules, entropy calculation, and heuristics."""
 
     def __init__(
         self,
-        rules: Optional[List[Rule]] = None,
+        rules: list[Rule] | None = None,
         entropy_threshold: float = 3.2,
-        custom_rules_path: Optional[pathlib.Path | str] = None,
+        custom_rules_path: pathlib.Path | str | None = None,
     ):
         self.entropy_threshold = entropy_threshold
-        self.rules: List[Rule] = rules if rules is not None else load_rules(custom_rules_path)
+        self.rules: list[Rule] = rules if rules is not None else load_rules(custom_rules_path)
         # Expose REGEX_PATTERNS dictionary for backward compatibility
-        self.patterns: Dict[str, re.Pattern] = {r.rule_id: r.pattern for r in self.rules}
+        self.patterns: dict[str, re.Pattern] = {r.rule_id: r.pattern for r in self.rules}
 
     @property
-    def patterns_dict(self) -> Dict[str, str]:
+    def patterns_dict(self) -> dict[str, str]:
         return {r.rule_id: r.pattern_raw for r in self.rules}
 
     def _is_false_positive_annotation(self, line: str, matched_text: str, secret_value: str) -> bool:
@@ -163,22 +189,15 @@ class DetectionEngine:
             return True
 
         # If the match looks like a type declaration: `foo: str` or `foo: Optional[str]`
-        if re.search(r":\s*(?:Optional\[)?(?:str|int|bool|float|bytes|Any|dict|list|string|boolean)\]?", matched_text, re.IGNORECASE):
-            # Check if there's no actual string literal assignment with a real value
-            if not re.search(r"=\s*['\"][^'\"]{8,}['\"]", matched_text):
-                return True
+        if _TYPE_ANNOTATION_PATTERN.search(matched_text) and not _STRING_LITERAL_PATTERN.search(matched_text):
+            return True
 
         # Catch os.environ / os.getenv / config lookups — not hardcoded secrets
-        if re.search(r"os\.(?:environ|getenv)|config\[|settings\[|env\.get", line, re.IGNORECASE):
-            if not re.search(r"=\s*['\"][^'\"]{8,}['\"]", matched_text):
-                return True
-
-        return False
+        return bool(_ENV_LOOKUP_PATTERN.search(line) and not _STRING_LITERAL_PATTERN.search(matched_text))
 
     def _score(self, value: str, severity: str) -> float:
         """Compute risk score combining rule severity with normalized Shannon entropy."""
-        filtered_chars = "".join(c for c in value if c in ENTROPY_CHARS)
-        entropy = shannon_entropy(filtered_chars) if filtered_chars else 0.0
+        entropy = _cached_shannon_entropy(value)
         normalized_entropy = min(entropy / 8.0, 1.0)
 
         base_weights = {
@@ -208,10 +227,10 @@ class DetectionEngine:
         self,
         text: str,
         file_path: str = "<unknown>",
-        commit_info: Optional[Dict[str, Any]] = None,
-    ) -> List[SecretFinding]:
+        commit_info: dict[str, Any] | None = None,
+    ) -> list[SecretFinding]:
         """Scan *text* and return detected :class:`SecretFinding` objects."""
-        findings: List[SecretFinding] = []
+        findings: list[SecretFinding] = []
         seen_fingerprints: set[str] = set()
 
         for line_num, line in enumerate(text.splitlines(), start=1):
@@ -231,7 +250,7 @@ class DetectionEngine:
 
                     # Entropy check for generic keys and passwords
                     if rule.rule_id in _ENTROPY_CHECKED_RULES:
-                        entropy = shannon_entropy(secret_val)
+                        entropy = _cached_shannon_entropy(secret_val)
                         if entropy < self.entropy_threshold:
                             continue
 
@@ -268,11 +287,20 @@ def is_binary_content(raw_bytes: bytes) -> bool:
     return b"\x00" in raw_bytes[:8192]
 
 
-def scan_file(path: str, engine: Optional[DetectionEngine] = None) -> List[Dict[str, Any]]:
+def is_likely_binary(path: Path) -> bool:
+    """Quick check if file is likely binary based on extension."""
+    return path.suffix.lower() in _BINARY_EXTENSIONS
+
+
+def scan_file(path: str, engine: DetectionEngine | None = None) -> list[dict[str, Any]]:
     """Read a single file, skip binaries, and return finding dictionaries."""
     try:
         p = Path(path)
         if not p.is_file():
+            return []
+
+        # Quick extension-based binary check before reading
+        if is_likely_binary(p):
             return []
 
         # Read raw bytes to check for binary data
@@ -292,10 +320,10 @@ def scan_file(path: str, engine: Optional[DetectionEngine] = None) -> List[Dict[
 
 def scan_path(
     target: os.PathLike | str,
-    engine: Optional[DetectionEngine] = None,
-    custom_rules_path: Optional[pathlib.Path | str] = None,
-    max_workers: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    engine: DetectionEngine | None = None,
+    custom_rules_path: pathlib.Path | str | None = None,
+    max_workers: int | None = None,
+) -> list[dict[str, Any]]:
     """Recursively scan a file or directory for secrets, honoring .secretscannerignore.
 
     Uses a thread-pool for parallel file I/O to speed up large directory scans.
@@ -317,7 +345,7 @@ def scan_path(
         return []
 
     # Collect all eligible file paths first (fast walk), then scan in parallel
-    file_paths: List[str] = []
+    file_paths: list[str] = []
     for root, dirs, files in os.walk(p):
         # Prune ignored subdirectories in-place to skip entire subtrees
         dirs[:] = [
@@ -334,7 +362,7 @@ def scan_path(
 
     # Parallel scan using ThreadPoolExecutor
     workers = max_workers if (max_workers is not None and max_workers > 0) else _MAX_WORKERS
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_path = {
             executor.submit(scan_file, fp, active_engine): fp
@@ -343,7 +371,8 @@ def scan_path(
         for future in as_completed(future_to_path):
             try:
                 results.extend(future.result())
-            except Exception:
-                pass  # Silently skip files that error during scanning
+            except (OSError, MemoryError, UnicodeDecodeError):
+                # Silently skip files that error during scanning
+                pass
 
     return results

@@ -7,9 +7,9 @@ from __future__ import annotations
 import datetime
 import html
 import json
-import pathlib
-from typing import Any, List, Dict
+from typing import Any
 
+NOW = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -131,9 +131,9 @@ def _get_severity_badge(severity: str) -> str:
     return f'<span class="badge {badge_cls}">{html.escape(s)}</span>'
 
 
-def generate_html_report(findings: List[Dict[str, Any]], target_path: str = ".") -> str:
+def generate_html_report(findings: list[dict[str, Any]], target_path: str = ".") -> str:
     """Generate a responsive HTML security audit report string."""
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = NOW.strftime("%Y-%m-%d %H:%M:%S")
 
     critical_count = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
     high_count = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
@@ -178,9 +178,9 @@ def generate_html_report(findings: List[Dict[str, Any]], target_path: str = ".")
     return report
 
 
-def generate_markdown_report(findings: List[Dict[str, Any]], target_path: str = ".") -> str:
+def generate_markdown_report(findings: list[dict[str, Any]], target_path: str = ".") -> str:
     """Generate Markdown format security audit report string."""
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = NOW.strftime("%Y-%m-%d %H:%M:%S")
 
     critical_count = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
     high_count = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
@@ -220,9 +220,9 @@ def generate_markdown_report(findings: List[Dict[str, Any]], target_path: str = 
     return "\n".join(md)
 
 
-def generate_sarif_report(findings: List[Dict[str, Any]], target_path: str = ".") -> str:
+def generate_sarif_report(findings: list[dict[str, Any]], target_path: str = ".") -> str:
     """Generate OASIS SARIF v2.1.0 standard report for CI/CD and GitHub Security tab."""
-    rules_dict: Dict[str, Dict[str, Any]] = {}
+    rules_dict: dict[str, dict[str, Any]] = {}
     sarif_results = []
 
     for f in findings:
@@ -248,7 +248,7 @@ def generate_sarif_report(findings: List[Dict[str, Any]], target_path: str = "."
         line = int(f.get("line", 1))
         col = int(f.get("col", 1))
 
-        result_item: Dict[str, Any] = {
+        result_item: dict[str, Any] = {
             "ruleId": rule_id,
             "level": level,
             "message": {

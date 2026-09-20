@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from secret_scanner.core.detectors import shannon_entropy, mask_secret, fingerprint
-from secret_scanner.core.engine import DetectionEngine, scan_path, scan_file
+from secret_scanner.core.detectors import mask_secret, shannon_entropy
+from secret_scanner.core.engine import DetectionEngine, scan_path
 
 
 class TestEngine(unittest.TestCase):

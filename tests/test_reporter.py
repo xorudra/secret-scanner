@@ -1,9 +1,10 @@
 """Unit tests for secret_scanner.core.reporter and ignore"""
 
-import unittest
 import pathlib
-from secret_scanner.core.reporter import generate_html_report, generate_markdown_report
+import unittest
+
 from secret_scanner.core.ignore import IgnoreFilter
+from secret_scanner.core.reporter import generate_html_report, generate_markdown_report
 
 
 class TestReporterAndIgnore(unittest.TestCase):

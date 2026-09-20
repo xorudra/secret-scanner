@@ -6,7 +6,7 @@ from pathlib import Path
 
 import git
 
-from secret_scanner.git_scanner import scan_repository, iter_git_objects, is_git_url
+from secret_scanner.git_scanner import is_git_url, iter_git_objects, scan_repository
 
 
 class TestGitScanner(unittest.TestCase):

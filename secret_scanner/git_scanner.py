@@ -5,36 +5,30 @@ and visited blob deduplication. Supports both local paths and remote Git URLs.
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-import re
 import tempfile
-from typing import List, Dict, Any, Optional, Generator, Tuple
+from collections.abc import Generator
+from pathlib import Path
+from typing import Any
 
 import git
 
 from secret_scanner.core.engine import DetectionEngine
-from secret_scanner.core.rules import load_rules
 from secret_scanner.core.ignore import IgnoreFilter
 
 
 def is_git_url(path_or_url: str | Path) -> bool:
     """Check if the string/path represents a remote Git repository URL."""
     s = str(path_or_url).strip()
-    if s.startswith(("http://", "https://", "git@", "ssh://", "git://")):
-        return True
-    if s.endswith(".git") and (":" in s or "/" in s):
-        return True
-    return False
+    return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or (s.endswith(".git") and (":" in s or "/" in s))
 
 
 def clone_repository(
     repo_url: str,
     dest_dir: Path | str,
-    depth: Optional[int] = None,
+    depth: int | None = None,
 ) -> git.Repo:
     """Clone a remote Git repository to *dest_dir* with optional shallow clone depth."""
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     if depth is not None and depth > 0:
         kwargs["depth"] = depth
     return git.Repo.clone_from(repo_url, str(dest_dir), **kwargs)
@@ -42,9 +36,9 @@ def clone_repository(
 
 def iter_git_objects(
     repo: git.Repo,
-    max_commits: Optional[int] = None,
-    ignore_filter: Optional[IgnoreFilter] = None,
-) -> Generator[Tuple[git.Commit, str, str], None, None]:
+    max_commits: int | None = None,
+    ignore_filter: IgnoreFilter | None = None,
+) -> Generator[tuple[git.Commit, str, str], None, None]:
     """Traverse commits and yield (commit, blob_path, content_text).
 
     Maintains a set of visited blob object IDs to prevent re-scanning identical
@@ -52,28 +46,28 @@ def iter_git_objects(
     """
     seen_blob_shas: set[str] = set()
 
-    commit_kwargs: Dict[str, Any] = {}
+    commit_kwargs: dict[str, Any] = {}
     if max_commits is not None and max_commits > 0:
         commit_kwargs["max_count"] = max_commits
 
     # Retrieve commits with fallbacks for shallow clones, unborn branches, etc.
-    commits: List[git.Commit] = []
+    commits: list[git.Commit] = []
     try:
         commits = list(repo.iter_commits("--all", **commit_kwargs))
-    except Exception:
+    except git.exc.GitError:
         try:
             commits = list(repo.iter_commits(**commit_kwargs))
-        except Exception:
+        except git.exc.GitError:
             try:
                 commits = [repo.head.commit]
-            except Exception:
+            except git.exc.GitError:
                 commits = []
 
     for commit in commits:
         try:
             tree = commit.tree
             items = list(tree.traverse())
-        except Exception:
+        except git.exc.GitError:
             continue
 
         for item in items:
@@ -95,28 +89,28 @@ def iter_git_objects(
                     continue
                 content = raw_bytes.decode("utf-8", errors="ignore")
                 yield commit, item.path, content
-            except Exception:
+            except (OSError, UnicodeDecodeError):
                 continue
 
 
 def _scan_repo_instance(
     repo: git.Repo,
     base_display_path: str,
-    max_commits: Optional[int] = None,
-    engine: Optional[DetectionEngine] = None,
-    custom_rules_path: Optional[Path | str] = None,
+    max_commits: int | None = None,
+    engine: DetectionEngine | None = None,
+    custom_rules_path: Path | str | None = None,
     use_ignore: bool = True,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Internal helper to scan an open git.Repo instance."""
     active_engine = engine or DetectionEngine(custom_rules_path=custom_rules_path)
-    detections: List[Dict[str, Any]] = []
+    detections: list[dict[str, Any]] = []
 
     ignore_filter = None
     if use_ignore:
         try:
             ignore_path = Path(repo.working_dir) / ".secretscannerignore"
             ignore_filter = IgnoreFilter(ignore_path if ignore_path.exists() else None)
-        except Exception:
+        except OSError:
             ignore_filter = IgnoreFilter()
 
     for commit, blob_path, content in iter_git_objects(
@@ -132,10 +126,10 @@ def _scan_repo_instance(
         commit_date_str = ""
         try:
             commit_date_str = commit.committed_datetime.isoformat()
-        except Exception:
+        except (AttributeError, OSError):
             pass
 
-        commit_info: Dict[str, Any] = {
+        commit_info: dict[str, Any] = {
             "commit_hash": commit.hexsha[:8],
             "commit_full_hash": commit.hexsha,
             "commit_author": str(commit.author),
@@ -152,11 +146,11 @@ def _scan_repo_instance(
 
 def scan_repository(
     repo_path: Path | str,
-    max_commits: Optional[int] = None,
-    engine: Optional[DetectionEngine] = None,
-    custom_rules_path: Optional[Path | str] = None,
+    max_commits: int | None = None,
+    engine: DetectionEngine | None = None,
+    custom_rules_path: Path | str | None = None,
     use_ignore: bool = True,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Scan a local Git repository or remote Git URL across commits for potential secrets.
 
     Returns a list of finding dictionaries enriched with commit metadata.
@@ -175,7 +169,7 @@ def scan_repository(
                 # Always do a full clone so that all commits are available for scanning.
                 # max_commits limits how many are processed, not clone depth.
                 repo = clone_repository(repo_str, temp_path, depth=None)
-            except Exception as e:
+            except git.exc.GitError as e:
                 raise RuntimeError(f"Failed to clone remote repository '{repo_str}': {e}") from e
 
             try:
