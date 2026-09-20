@@ -195,10 +195,30 @@ def scan_repository(
     if not path_obj.exists():
         raise FileNotFoundError(f"Repository path does not exist: '{repo_str}'")
 
+    # Check if the target path itself is a git repo (has .git dir) or is inside one
+    # by looking for .git in the target path or its parents, but only up to a reasonable
+    # depth to avoid accidentally finding unrelated parent repos (e.g. user's home dir).
+    search_parents = False
+    check_path = path_obj
+    max_depth = 3  # Limit parent search to avoid hitting unrelated repos
+    depth = 0
+    while check_path != check_path.parent and depth < max_depth:
+        if (check_path / ".git").exists():
+            search_parents = True
+            break
+        check_path = check_path.parent
+        depth += 1
+
     try:
-        repo = git.Repo(str(path_obj), search_parent_directories=True)
+        repo = git.Repo(str(path_obj), search_parent_directories=search_parents)
     except (git.exc.InvalidGitRepositoryError, git.exc.NoSuchPathError) as e:
         raise ValueError(f"'{repo_str}' is not a valid Git repository.") from e
+
+    # Validate that the found repository is actually the target path or a parent of it.
+    repo_root = Path(repo.working_dir).resolve()
+    if not str(path_obj).startswith(str(repo_root)):
+        repo.close()
+        raise ValueError(f"'{repo_str}' is not inside a valid Git repository.")
 
     try:
         return _scan_repo_instance(
