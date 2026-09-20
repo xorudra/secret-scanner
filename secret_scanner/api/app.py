@@ -24,7 +24,7 @@ from secret_scanner.git_scanner import scan_repository
 
 app = FastAPI(
     title="SecretScanner Platform",
-    version="2.1.0",
+    version="2.2.0",
     description="Privacy-first secret & credential leak detection platform",
 )
 
@@ -71,6 +71,22 @@ class ScanTextRequest(BaseModel):
 class ScanGitRequest(BaseModel):
     repo_path: str
     max_commits: int | None = None
+
+
+class ScanUrlRequest(BaseModel):
+    url: str
+    follow_redirects: bool = True
+    max_size_mb: int = 5
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("URL cannot be empty")
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
 
 
 class ScanResponse(BaseModel):
@@ -142,6 +158,50 @@ async def scan_git(req: ScanGitRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Failed to scan git repository: {e!s}")
+
+
+@app.post("/scan/url", response_model=ScanResponse)
+async def scan_url(req: ScanUrlRequest):
+    """Scan a website URL for secrets by fetching and analyzing its content."""
+    import httpx
+
+    engine = DetectionEngine()
+    all_findings = []
+    target = req.url
+
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=req.follow_redirects,
+            timeout=httpx.Timeout(30.0),
+            headers={"User-Agent": "SecretScanner/2.2.0 (+https://github.com/secret-scanner)"},
+        ) as client:
+            resp = await client.get(target)
+            resp.raise_for_status()
+
+            # Check content size
+            content = resp.text
+            max_bytes = req.max_size_mb * 1024 * 1024
+            if len(content.encode("utf-8", errors="ignore")) > max_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Response exceeds {req.max_size_mb} MB limit. Use max_size_mb parameter to increase.",
+                )
+
+            # Scan the content
+            raw = engine.scan(content, file_path=target)
+            findings = [f.to_dict() for f in raw]
+            all_findings.extend(findings)
+
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"HTTP {e.response.status_code}: {e.response.reason_phrase}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Request failed: {e!s}")
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to scan URL: {e!s}")
+
+    return ScanResponse(count=len(all_findings), findings=all_findings)
 
 
 @app.post("/report/html")

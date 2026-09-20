@@ -568,6 +568,9 @@
     <button class="nav-item" id="nav-git"     onclick="goPage('git')">
       <i class="fa-brands fa-git-alt"></i> Git History
     </button>
+    <button class="nav-item" id="nav-url"     onclick="goPage('url')">
+      <i class="fa-solid fa-globe"></i> URL / Website
+    </button>
 
     <div class="sidebar-sep"></div>
     <div class="sidebar-label">Analyse</div>
@@ -717,6 +720,57 @@
           <i class="fa-solid fa-triangle-exclamation" style="color:var(--med)"></i>
           For remote URLs, <code>git</code> must be installed and accessible on PATH.
           Cloning may take time for large repos.
+        </p>
+      </div>
+    </section>
+
+    <!-- ╔════════════════════════════╗ -->
+    <!-- ║  Page: URL / Website Scan ║ -->
+    <!-- ╚════════════════════════════╝ -->
+    <section class="page" id="page-url">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-globe" style="color:var(--cyan)"></i> URL / Website Scanner</h1>
+        <p>Fetch and scan any public website for exposed secrets in HTML, JavaScript, CSS, and API responses. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-link"></i> Target Website</div>
+        <div class="field">
+          <label>Website URL</label>
+          <div class="input-row">
+            <input type="text" id="url-input" placeholder="e.g.  https://example.com  or  https://api.example.com/v1/config"
+                   onkeydown="if(event.ctrlKey&&event.key==='Enter')runUrlScan()">
+            <button class="btn btn-primary" id="btn-url" onclick="runUrlScan()">
+              <i class="fa-solid fa-magnifying-glass"></i> Scan URL
+            </button>
+          </div>
+        </div>
+        <div class="field" style="max-width:300px;">
+          <label>Max response size (MB)</label>
+          <input type="number" id="url-max-size" value="5" min="1" max="50" step="1"
+                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runUrlScan()">
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.5rem;">
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--subtle);cursor:pointer;">
+            <input type="checkbox" id="url-follow-redirects" checked>
+            Follow redirects
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--subtle);cursor:pointer;">
+            <input type="checkbox" id="url-include-subresources" checked>
+            Scan linked JS/CSS files (experimental)
+          </label>
+        </div>
+        <button class="btn btn-primary" id="btn-url" onclick="runUrlScan()" style="margin-top:.75rem;">
+          <i class="fa-solid fa-globe"></i> Scan Website
+        </button>
+        <div class="scan-progress" id="prog-url">
+          <div class="progress-label"><span>Fetching & scanning…</span><span id="prog-url-txt">please wait</span></div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:.9rem;">
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--med)"></i>
+          Only scans publicly accessible content. Does not authenticate, execute JS, or crawl beyond the initial URL.
+          Use responsibly and only on sites you own or have permission to test.
         </p>
       </div>
     </section>
@@ -1020,7 +1074,41 @@ async function runGitScan() {
 }
 
 /* ═══════════════════════════════════════════════
-   COMMIT FINDINGS — update all views
+   
+
+/* ============================================================
+   SCAN -- URL / WEBSITE
+============================================================ */
+async function runUrlScan() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) { toast('Enter a URL first.', 'warn'); return; }
+  if (!/^https?:\/\//i.test(url)) { toast('URL must start with http:// or https://', 'warn'); return; }
+
+  const maxSizeMb = parseInt(document.getElementById('url-max-size').value || '5', 10);
+  const followRedirects = document.getElementById('url-follow-redirects').checked;
+  const includeSubresources = document.getElementById('url-include-subresources').checked;
+
+  lastTarget  = 'URL: ' + url;
+  setBtn('btn-url', true);
+  showProgress('prog-url');
+  document.getElementById('prog-url-txt').textContent = 'Fetching website...';
+
+  try {
+    const payload = { url, follow_redirects: followRedirects, max_size_mb: maxSizeMb };
+    const res  = await fetch('/scan/url', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'URL scan failed');
+
+    commitFindings(data.findings, lastTarget, 'fa-globe', 'rgba(34,211,238,.15)');
+  } catch(e) { toast('URL scan error: ' + e.message, 'error'); }
+  finally { setBtn('btn-url', false); hideProgress('prog-url'); }
+}
+
+/* ============================================================
+   COMMIT FINDINGS
+============================================================ */
+
+COMMIT FINDINGS — update all views
 ═══════════════════════════════════════════════ */
 function commitFindings(findings, label, icon, iconBg) {
   allFindings = findings;
