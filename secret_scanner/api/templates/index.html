@@ -827,6 +827,7 @@
           <button class="btn btn-ghost btn-sm" onclick="exportMarkdown()"><i class="fa-solid fa-file-lines"></i> MD</button>
           <button class="btn btn-ghost btn-sm" onclick="exportSARIF()"><i class="fa-solid fa-shield-virus"></i> SARIF</button>
           <button class="btn btn-ghost btn-sm" onclick="exportHTML()"><i class="fa-solid fa-file-code"></i> HTML</button>
+          <button class="btn btn-primary btn-sm" onclick="exportPDF()"><i class="fa-solid fa-file-pdf"></i> PDF</button>
           <button class="btn btn-danger btn-sm" onclick="clearResults()"><i class="fa-solid fa-trash"></i> Clear</button>
         </div>
       </div>
@@ -1994,6 +1995,20 @@ async function exportHTML() {
   } catch(e) { toast('Export failed: ' + e.message, 'error'); }
 }
 
+async function exportPDF() {
+  if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
+  try {
+    const res = await fetch('/report/pdf', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({findings:allFindings, target_path:lastTarget}) });
+    if (!res.ok) {
+      const errText = await res.text();
+      if (res.status === 501) throw new Error('PDF export requires "weasyprint" package. Install with: pip install weasyprint');
+      throw new Error(errText);
+    }
+    downloadBlob(await res.blob(), `secret_audit_report_${Date.now()}.pdf`, 'application/pdf');
+    toast('Exported PDF Report', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
 async function exportMarkdown() {
   if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
   try {
@@ -2066,3 +2081,5 @@ window.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
+

@@ -298,3 +298,43 @@ def generate_sarif_report(findings: list[dict[str, Any]], target_path: str = "."
         ],
     }
     return json.dumps(sarif, indent=2)
+
+
+def generate_pdf_report(findings: list[dict[str, Any]], target_path: str = ".") -> bytes:
+    """Generate PDF audit report from findings using WeasyPrint."""
+    try:
+        from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
+    except ImportError:
+        raise RuntimeError(
+            "PDF export requires 'weasyprint'. Install with: pip install weasyprint"
+        )
+
+    # Generate HTML first
+    html_content = generate_html_report(findings, target_path)
+
+    # Create PDF from HTML
+    font_config = FontConfiguration()
+    html_doc = HTML(string=html_content, base_url=".")
+
+    # Add custom CSS for PDF formatting
+    pdf_css = CSS(string="""
+        @page {
+            size: A4;
+            margin: 2cm;
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #666;
+            }
+        }
+        body { font-size: 11px; }
+        .card { page-break-inside: avoid; margin-bottom: 1rem; }
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+    """, font_config=font_config)
+
+    pdf_bytes = html_doc.write_pdf(stylesheets=[pdf_css], font_config=font_config)
+    return pdf_bytes

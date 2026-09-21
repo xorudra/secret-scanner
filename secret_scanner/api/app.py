@@ -20,6 +20,7 @@ from secret_scanner.core.reporter import (
     generate_html_report,
     generate_markdown_report,
     generate_sarif_report,
+    generate_pdf_report,
 )
 from secret_scanner.core.rules import load_rules
 from secret_scanner.git_scanner import scan_repository
@@ -408,6 +409,24 @@ async def export_sarif_report(req: ReportExportRequest):
     """Generate OASIS SARIF v2.1.0 audit report JSON string."""
     sarif_content = generate_sarif_report(req.findings, target_path=req.target_path)
     return Response(content=sarif_content, media_type="application/json")
+
+
+@app.post("/report/pdf")
+async def export_pdf_report(req: ReportExportRequest):
+    """Generate PDF audit report bytes."""
+    try:
+        pdf_content = generate_pdf_report(req.findings, target_path=req.target_path)
+    except RuntimeError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e!s}")
+
+    filename = f"secret_scanner_report_{req.target_path.replace('/', '_').replace('\\', '_')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
