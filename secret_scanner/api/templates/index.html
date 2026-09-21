@@ -595,6 +595,9 @@
     <button class="nav-item" id="nav-schedule" onclick="goPage('schedule')">
       <i class="fa-solid fa-calendar-days"></i> Scheduling
     </button>
+    <button class="nav-item" id="nav-diff" onclick="goPage('diff'); loadHistory();">
+      <i class="fa-solid fa-code-compare"></i> Diff View
+    </button>
 
     <div class="sidebar-sep"></div>
     <div class="sidebar-label">Config</div>
@@ -1017,6 +1020,54 @@
             <h3>No schedules yet</h3>
             <p>Create a scheduled scan to automate recurring secret detection.</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- +-----------------------+ -->
+    <!-- ¦  Page: Diff View      ¦ -->
+    <section class="page" id="page-diff">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-code-compare" style="color:var(--violet)"></i> Scan Comparison</h1>
+        <p>Compare two scans from history to see what new secrets were introduced or resolved.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+        <div class="card">
+          <div class="card-title"><i class="fa-solid fa-arrow-left"></i> Baseline Scan (Older)</div>
+          <select id="diff-baseline" class="filter-sel" style="width:100%;" onchange="loadDiff()">
+            <option value="">Select baseline scan…</option>
+          </select>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="fa-solid fa-arrow-right"></i> Current Scan (Newer)</div>
+          <select id="diff-current" class="filter-sel" style="width:100%;" onchange="loadDiff()">
+            <option value="">Select current scan…</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" id="diff-results" style="display:none;">
+        <div class="card-title"><i class="fa-solid fa-code-compare"></i> Diff Results</div>
+        <div id="diff-summary" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+          <div class="stat-card"><div class="stat-label">New Findings</div><div class="stat-value stat-crit" id="diff-new">0</div></div>
+          <div class="stat-card"><div class="stat-label">Resolved</div><div class="stat-value stat-safe" id="diff-resolved">0</div></div>
+          <div class="stat-card"><div class="stat-label">Unchanged</div><div class="stat-value stat-blue" id="diff-unchanged">0</div></div>
+        </div>
+        <div class="table-wrap">
+          <table id="diff-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Severity</th>
+                <th>Rule</th>
+                <th>File</th>
+                <th>Line</th>
+                <th>Masked Value</th>
+              </tr>
+            </thead>
+            <tbody id="diff-body"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -2114,6 +2165,105 @@ async function exportSARIF() {
   } catch(e) { toast('Export failed: ' + e.message, 'error'); }
 }
 
+/* -----------------------------------------------
+   DIFF VIEW
+----------------------------------------------- */
+function loadDiff() {
+  const baselineIdx = parseInt(document.getElementById('diff-baseline').value);
+  const currentIdx = parseInt(document.getElementById('diff-current').value);
+
+  if (isNaN(baselineIdx) || isNaN(currentIdx)) {
+    document.getElementById('diff-results').style.display = 'none';
+    return;
+  }
+
+  if (baselineIdx === currentIdx) {
+    toast('Select two different scans to compare.', 'warn');
+    return;
+  }
+
+  const baseline = scanHistory[baselineIdx];
+  const current = scanHistory[currentIdx];
+
+  if (!baseline || !current) return;
+
+  const baselineFindings = baseline.findings || [];
+  const currentFindings = current.findings || [];
+
+  // Create fingerprint maps for comparison
+  const baselineMap = new Map(baselineFindings.map(f => [f.fingerprint, f]));
+  const currentMap = new Map(currentFindings.map(f => [f.fingerprint, f]));
+
+  const allFingerprints = new Set([...baselineMap.keys(), ...currentMap.keys()]);
+
+  let newCount = 0, resolvedCount = 0, unchangedCount = 0;
+  const diffRows = [];
+
+  for (const fp of allFingerprints) {
+    const b = baselineMap.get(fp);
+    const c = currentMap.get(fp);
+
+    if (!b && c) {
+      // New finding
+      newCount++;
+      diffRows.push({ status: 'new', finding: c, badge: 'badge-critical', label: 'New' });
+    } else if (b && !c) {
+      // Resolved
+      resolvedCount++;
+      diffRows.push({ status: 'resolved', finding: b, badge: 'badge-safe', label: 'Resolved' });
+    } else {
+      // Unchanged (both have it)
+      unchangedCount++;
+      diffRows.push({ status: 'unchanged', finding: c, badge: 'badge-medium', label: 'Unchanged' });
+    }
+  }
+
+  // Sort: new first, then resolved, then unchanged
+  diffRows.sort((a, b) => {
+    const order = { new: 0, resolved: 1, unchanged: 2 };
+    return order[a.status] - order[b.status];
+  });
+
+  document.getElementById('diff-new').textContent = newCount;
+  document.getElementById('diff-resolved').textContent = resolvedCount;
+  document.getElementById('diff-unchanged').textContent = unchangedCount;
+
+  const tbody = document.getElementById('diff-body');
+  tbody.innerHTML = diffRows.map(d => {
+    const f = d.finding;
+    const fname = f.file ? f.file.replace(/\\\\/g, '/').split('/').slice(-2).join('/') : '';
+    return `
+      <tr style="opacity:${d.status==='unchanged'?'0.5':'1'};">
+        <td><span class="badge ${d.badge}">${d.label}</span></td>
+        <td>${sevBadge(f.severity)}</td>
+        <td>${escHtml(f.rule_name||f.type)}</td>
+        <td><span class="file-chip" title="${escHtml(f.file)}">${escHtml(fname)}</span></td>
+        <td style="color:var(--subtle)">L${f.line}</td>
+        <td><span class="code-chip">${escHtml(f.masked_value||'****')}</span></td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('diff-results').style.display = 'block';
+}
+
+function populateDiffSelects() {
+  const baseline = document.getElementById('diff-baseline');
+  const current = document.getElementById('diff-current');
+
+  const options = scanHistory.map((s, i) =>
+    `<option value="${i}">${escHtml(s.label)} (${s.ts}) — ${s.findings.length} findings</option>`
+  ).join('');
+
+  baseline.innerHTML = '<option value="">Select baseline scan…</option>' + options;
+  current.innerHTML = '<option value="">Select current scan…</option>' + options;
+}
+
+// Populate diff selects when history loads
+const originalRenderHistory = renderHistory;
+renderHistory = function() {
+  originalRenderHistory();
+  populateDiffSelects();
+};
 /* -----------------------------------------------
    INIT
 ----------------------------------------------- */
