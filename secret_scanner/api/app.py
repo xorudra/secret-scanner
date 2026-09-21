@@ -5,11 +5,13 @@ premium, feature-rich Web GUI dashboard.
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import pathlib
+import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, field_validator
 
@@ -21,6 +23,50 @@ from secret_scanner.core.reporter import (
 )
 from secret_scanner.core.rules import load_rules
 from secret_scanner.git_scanner import scan_repository
+
+
+# --- WebSocket Progress Manager ----------------------------------------------
+class ProgressManager:
+    """Manages WebSocket connections for real-time scan progress."""
+    
+    def __init__(self):
+        self.connections: dict[str, WebSocket] = {}
+        self.progress_data: dict[str, dict] = {}
+    
+    async def connect(self, scan_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self.connections[scan_id] = websocket
+        self.progress_data[scan_id] = {
+            "status": "starting",
+            "current_file": "",
+            "files_scanned": 0,
+            "total_files": 0,
+            "findings_count": 0,
+            "errors": []
+        }
+    
+    def disconnect(self, scan_id: str):
+        self.connections.pop(scan_id, None)
+        self.progress_data.pop(scan_id, None)
+    
+    async def send_progress(self, scan_id: str, data: dict):
+        if scan_id in self.connections:
+            try:
+                await self.connections[scan_id].send_json(data)
+            except Exception:
+                pass  # Connection closed
+    
+    async def update_progress(self, scan_id: str, **kwargs):
+        if scan_id in self.progress_data:
+            self.progress_data[scan_id].update(kwargs)
+            await self.send_progress(scan_id, self.progress_data[scan_id])
+    
+    def get_progress(self, scan_id: str) -> dict:
+        return self.progress_data.get(scan_id, {})
+
+
+progress_manager = ProgressManager()
+
 
 app = FastAPI(
     title="SecretScanner Platform",
@@ -50,11 +96,13 @@ HTML_DASHBOARD = load_dashboard_html()
 # ---------------------------------------------------------------------------
 class ScanRequest(BaseModel):
     path: str = "."
+    scan_id: str | None = None
 
 
 class ScanTextRequest(BaseModel):
     text: str
     filename: str = "<inline>"
+    scan_id: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -71,12 +119,14 @@ class ScanTextRequest(BaseModel):
 class ScanGitRequest(BaseModel):
     repo_path: str
     max_commits: int | None = None
+    scan_id: str | None = None
 
 
 class ScanUrlRequest(BaseModel):
     url: str
     follow_redirects: bool = True
     max_size_mb: int = 5
+    scan_id: str | None = None
 
     @field_validator("url")
     @classmethod
@@ -87,6 +137,14 @@ class ScanUrlRequest(BaseModel):
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
+
+
+class RuleCreateRequest(BaseModel):
+    id: str
+    name: str
+    pattern: str
+    severity: str
+    description: str = ""
 
 
 class ScanResponse(BaseModel):
@@ -120,6 +178,77 @@ async def get_rules():
     }
 
 
+
+@app.post("/rules")
+async def create_rule(req: RuleCreateRequest):
+    """Add a new detection rule to the rules file."""
+    import re
+    import yaml
+    from pathlib import Path
+    
+    # Validate regex
+    try:
+        re.compile(req.pattern)
+    except re.error as e:
+        raise HTTPException(status_code=400, detail=f"Invalid regex: {e}")
+    
+    # Validate severity
+    if req.severity.upper() not in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+        raise HTTPException(status_code=400, detail="Severity must be CRITICAL, HIGH, MEDIUM, or LOW")
+    
+    # Validate ID format
+    if not re.match(r'^[a-z_][a-z0-9_]*$', req.id):
+        raise HTTPException(status_code=400, detail="ID must be lowercase with underscores only")
+    
+    rules_file = Path(__file__).parent.parent.parent / "rules" / "default_rules.yaml"
+    
+    # Load existing
+    with open(rules_file, 'r') as f:
+        data = yaml.safe_load(f) or {"rules": []}
+    
+    # Check for duplicate ID
+    if any(r.get('id') == req.id for r in data.get('rules', [])):
+        raise HTTPException(status_code=409, detail=f"Rule with ID '{req.id}' already exists")
+    
+    # Add new rule
+    new_rule = {
+        "id": req.id,
+        "name": req.name,
+        "pattern": req.pattern,
+        "severity": req.severity.upper(),
+        "description": req.description
+    }
+    data.setdefault("rules", []).append(new_rule)
+    
+    # Write back
+    with open(rules_file, 'w') as f:
+        yaml.dump(data, f, sort_keys=False, allow_unicode=True)
+    
+    # Clear rules cache so next load picks up new rule
+    from secret_scanner.core.rules import load_rules
+    load_rules.cache_clear()
+    
+    return {"success": True, "rule": new_rule}
+
+
+# ─── WebSocket Endpoint ─────────────────────────────────────────────────────
+@app.websocket("/ws/progress/{scan_id}")
+async def websocket_progress(websocket: WebSocket, scan_id: str):
+    """WebSocket endpoint for real-time scan progress updates."""
+    await progress_manager.connect(scan_id, websocket)
+    try:
+        # Keep connection alive, send initial progress
+        await progress_manager.send_progress(scan_id, progress_manager.get_progress(scan_id))
+        while True:
+            # Wait for client messages (ping/pong) or close
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        progress_manager.disconnect(scan_id)
+    except Exception:
+        progress_manager.disconnect(scan_id)
+
+
+# ─── Scan Endpoints with Progress ────────────────────────────────────────────
 @app.post("/scan", response_model=ScanResponse)
 async def scan_directory(req: ScanRequest):
     """Scan a file or directory for secrets."""
@@ -130,16 +259,40 @@ async def scan_directory(req: ScanRequest):
     if not target.exists():
         raise HTTPException(status_code=400, detail=f"Target path does not exist: '{req.path}'")
 
+    scan_id = req.scan_id
+    if scan_id:
+        await progress_manager.update_progress(scan_id, status="scanning", current_file="Starting scan...")
+    
     findings = scan_path(target)
+    
+    if scan_id:
+        await progress_manager.update_progress(scan_id, status="complete", findings_count=len(findings))
+    
     return ScanResponse(count=len(findings), findings=findings)
 
 
 @app.post("/scan/text", response_model=ScanResponse)
 async def scan_text(req: ScanTextRequest):
     """Scan raw text or code snippets for secrets."""
+    scan_id = req.scan_id
+    if scan_id:
+        await progress_manager.update_progress(
+            scan_id,
+            status="scanning",
+            current_file=f"Scanning text: {req.filename}",
+        )
+
     engine = DetectionEngine()
     raw = engine.scan(req.text, file_path=req.filename)
     findings = [f.to_dict() for f in raw]
+
+    if scan_id:
+        await progress_manager.update_progress(
+            scan_id,
+            status="complete",
+            findings_count=len(findings),
+        )
+
     return ScanResponse(count=len(findings), findings=findings)
 
 
@@ -149,8 +302,25 @@ async def scan_git(req: ScanGitRequest):
     repo_input = req.repo_path.strip() if req.repo_path else "."
     if not repo_input:
         repo_input = "."
+
+    scan_id = req.scan_id
+    if scan_id:
+        await progress_manager.update_progress(
+            scan_id,
+            status="scanning",
+            current_file=f"Scanning Git repository: {repo_input}",
+        )
+
     try:
         findings = scan_repository(repo_input, max_commits=req.max_commits)
+
+        if scan_id:
+            await progress_manager.update_progress(
+                scan_id,
+                status="complete",
+                findings_count=len(findings),
+            )
+
         return ScanResponse(count=len(findings), findings=findings)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -164,6 +334,14 @@ async def scan_git(req: ScanGitRequest):
 async def scan_url(req: ScanUrlRequest):
     """Scan a website URL for secrets by fetching and analyzing its content."""
     import httpx
+
+    scan_id = req.scan_id
+    if scan_id:
+        await progress_manager.update_progress(
+            scan_id,
+            status="scanning",
+            current_file=f"Fetching URL: {req.url}",
+        )
 
     engine = DetectionEngine()
     all_findings = []
@@ -201,6 +379,13 @@ async def scan_url(req: ScanUrlRequest):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Failed to scan URL: {e!s}")
 
+    if scan_id:
+        await progress_manager.update_progress(
+            scan_id,
+            status="complete",
+            findings_count=len(all_findings),
+        )
+
     return ScanResponse(count=len(all_findings), findings=all_findings)
 
 
@@ -229,3 +414,5 @@ async def export_sarif_report(req: ReportExportRequest):
 async def serve_dashboard():
     """Serves the premium Web GUI dashboard (v2.1)."""
     return HTMLResponse(content=load_dashboard_html())
+
+

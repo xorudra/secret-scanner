@@ -532,6 +532,14 @@
       .stats-grid { grid-template-columns: repeat(2,1fr); }
       .main { padding: 1rem; }
     }
+    /* -- Shortcuts grid (modals) -- */
+    .shortcuts-grid { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+    .shortcut-item { display: flex; align-items: center; gap: .75rem; padding: .5rem .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+    .shortcut-item kbd { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.15); min-width: 80px; text-align: center; }
+    .shortcut-item span { color: var(--txt); font-size: .85rem; }
+    [data-theme="light"] .shortcut-item { background: var(--surface); border-color: var(--border); }
+    [data-theme="light"] .shortcut-item kbd { background: rgba(0,0,0,0.05); border-color: var(--border); }
+
   </style>
 </head>
 <body>
@@ -934,6 +942,45 @@
 
 <!-- -- Toast container -- -->
 <div id="toast-container"></div>
+<!-- -- Finding Details Modal -- -->
+<div class="modal-overlay" id="finding-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title"><i class="fa-solid fa-info-circle"></i> Finding Details</h3>
+      <button class="modal-close" onclick="closeFindingModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <!-- Content injected by openFindingModal() -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeFindingModal()"><i class="fa-solid fa-xmark"></i> Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Keyboard Shortcuts Modal -- -->
+<div class="modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+  <div class="modal" style="max-width: 560px;">
+    <div class="modal-header">
+      <h3 id="shortcuts-title"><i class="fa-solid fa-keyboard"></i> Keyboard Shortcuts</h3>
+      <button class="modal-close" onclick="closeShortcutsModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="shortcuts-grid">
+        <div class="shortcut-item"><kbd>?</kbd><span>Show this help</span></div>
+        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>Enter</kbd><span>Run scan (in input fields)</span></div>
+        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd><span>Toggle light/dark theme</span></div>
+        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>K</kbd><span>Focus search (Results page)</span></div>
+        <div class="shortcut-item"><kbd>1</kbd>..<kbd>8</kbd><span>Navigate pages (not implemented)</span></div>
+        <div class="shortcut-item"><kbd>Esc</kbd><span>Close modals</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeShortcutsModal()"><i class="fa-solid fa-check"></i> Got it</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 /* -----------------------------------------------
@@ -951,6 +998,72 @@ let scanHistory    = [];   // [{label, icon, iconBg, findings, ts}]
 // Pagination
 const PAGE_SIZE    = 100;  // rows per page
 let currentPage    = 1;
+/* -----------------------------------------------
+   THEME TOGGLE
+----------------------------------------------- */
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcons(theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeIcons(next);
+}
+
+function updateThemeIcons(theme) {
+  const sun = document.getElementById('theme-icon-sun');
+  const moon = document.getElementById('theme-icon-moon');
+  if (sun && moon) {
+    sun.style.display = theme === 'dark' ? 'none' : 'inline';
+    moon.style.display = theme === 'dark' ? 'inline' : 'none';
+  }
+}
+
+// Initialize theme on load
+initTheme();
+
+/* -----------------------------------------------
+   KEYBOARD SHORTCUTS MODAL
+----------------------------------------------- */
+function openShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeRuleEditor() {
+  const card = document.getElementById('rule-editor-card');
+  if (card) card.style.display = 'none';
+}
+
+// Global keyboard listener for ? key
+document.addEventListener('keydown', (e) => {
+  // Ignore if typing in input/textarea
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+    e.preventDefault();
+    openShortcutsModal();
+  }
+
+  // Close modals on Escape
+  if (e.key === 'Escape') {
+    closeFindingModal();
+    closeShortcutsModal();
+    closeRuleEditor();
+  }
+});
 
 /* -----------------------------------------------
    MOBILE SIDEBAR
