@@ -598,6 +598,9 @@
     <button class="nav-item" id="nav-diff" onclick="goPage('diff'); loadHistory();">
       <i class="fa-solid fa-code-compare"></i> Diff View
     </button>
+    <button class="nav-item" id="nav-projects" onclick="goPage('projects')">
+      <i class="fa-solid fa-users"></i> Team Projects
+    </button>
 
     <div class="sidebar-sep"></div>
     <div class="sidebar-label">Config</div>
@@ -1068,6 +1071,73 @@
             </thead>
             <tbody id="diff-body"></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- +-----------------------+ -->
+    <!-- ¦  Page: Team Projects  ¦ -->
+    <!-- +-----------------------+ -->
+    <section class="page" id="page-projects">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-users" style="color:var(--violet)"></i> Team Projects</h1>
+        <p>Manage multi-repository projects with team collaboration and centralized scanning.</p>
+      </div>
+
+      <!-- Create Project Modal -->
+      <div class="modal-overlay" id="project-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+        <div class="modal" style="max-width: 720px;">
+          <div class="modal-header">
+            <h3 id="project-modal-title"><i class="fa-solid fa-plus"></i> Create Project</h3>
+            <button class="modal-close" onclick="closeProjectModal()" aria-label="Close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="project-form">
+              <input type="hidden" id="project-id">
+              <div class="field">
+                <label>Project Name</label>
+                <input type="text" id="project-name" placeholder="e.g. Company Secrets Audit" required>
+              </div>
+              <div class="field">
+                <label>Description</label>
+                <textarea id="project-description" placeholder="What repositories does this project cover?" rows="2"></textarea>
+              </div>
+              <div class="field">
+                <label>Default Scan Type</label>
+                <select id="project-default-scan-type">
+                  <option value="path">Directory / File</option>
+                  <option value="git">Git History</option>
+                  <option value="url">URL / Website</option>
+                </select>
+              </div>
+              
+              <div class="card-title" style="margin-top:1rem;"><i class="fa-solid fa-database"></i> Repositories</div>
+              <div id="project-repos-list"></div>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="addProjectRepo()" style="margin-top:.5rem;">
+                <i class="fa-solid fa-plus"></i> Add Repository
+              </button>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost btn-sm" onclick="closeProjectModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+            <button class="btn btn-primary" onclick="saveProject()"><i class="fa-solid fa-save"></i> Save Project</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+        <div></div>
+        <button class="btn btn-primary" onclick="openProjectModal()"><i class="fa-solid fa-plus"></i> New Project</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-folder-tree"></i> Projects</div>
+        <div id="projects-list">
+          <div class="empty-state">
+            <div class="icon"><i class="fa-solid fa-users"></i></div>
+            <h3>No projects yet</h3>
+            <p>Create a project to organize repositories and team scanning workflows.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -2264,6 +2334,233 @@ renderHistory = function() {
   originalRenderHistory();
   populateDiffSelects();
 };
+﻿/* -----------------------------------------------
+   TEAM PROJECTS
+----------------------------------------------- */
+let projects = [];
+let editingProjectId = null;
+
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    if (!res.ok) throw new Error('Failed to load projects');
+    projects = await res.json();
+    renderProjects();
+  } catch (e) {
+    toast('Failed to load projects: ' + e.message, 'error');
+  }
+}
+
+function renderProjects() {
+  const el = document.getElementById('projects-list');
+  if (!projects.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon"><i class="fa-solid fa-users"></i></div>
+      <h3>No projects yet</h3>
+      <p>Create a project to organize repositories and team scanning workflows.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = projects.map(p => `
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">
+        <i class="fa-solid fa-users"></i> ${escHtml(p.name)}
+        <span style="margin-left:auto;font-size:.75rem;color:var(--muted)">${(p.repositories || []).length} repos</span>
+      </div>
+      ${p.description ? `<p style="color:var(--subtle);font-size:.85rem;margin-bottom:.5rem;">${escHtml(p.description)}</p>` : ''}
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem;">
+        Default scan type: <strong>${escHtml(p.default_scan_type || 'path')}</strong>
+      </div>
+      ${(p.repositories || []).length ? `
+        <div style="margin-top:.5rem;">
+          ${p.repositories.map(r => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:.4rem;font-size:.82rem;">
+              <strong>${escHtml(r.name)}</strong>
+              <span style="color:var(--muted)"> — ${escHtml(r.url || r.path || '')}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--muted);font-size:.82rem;">No repositories configured.</p>'}
+      <div class="expand-actions" style="margin-top:.75rem;">
+        <button class="btn btn-ghost btn-sm" onclick="openProjectModal('${p.id}')">
+          <i class="fa-solid fa-pen"></i> Edit
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">
+          <i class="fa-solid fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openProjectModal(id) {
+  const modal = document.getElementById('project-modal');
+  if (id) {
+    const p = projects.find(p => p.id === id);
+    if (!p) return;
+    editingProjectId = id;
+    document.getElementById('project-modal-title').innerHTML = '<i class="fa-solid fa-pen"></i> Edit Project';
+    document.getElementById('project-id').value = p.id;
+    document.getElementById('project-name').value = p.name || '';
+    document.getElementById('project-description').value = p.description || '';
+    document.getElementById('project-default-scan-type').value = p.default_scan_type || 'path';
+    renderProjectRepoConfigFields(p.repositories || []);
+  } else {
+    editingProjectId = null;
+    document.getElementById('project-form').reset();
+    renderProjectRepoConfigFields([]);
+  }
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeProjectModal() {
+  document.getElementById('project-modal').classList.remove('open');
+  document.body.style.overflow = '';
+  editingProjectId = null;
+}
+
+function addProjectRepo() {
+  const list = document.getElementById('project-repos-list');
+  const repos = JSON.parse(list.dataset.repos || '[]');
+  repos.push({ name: '', url: '', path: '', scan_type: 'path' });
+  renderProjectRepoConfigFields(repos);
+}
+
+function renderProjectRepoConfigFields(repos) {
+  const list = document.getElementById('project-repos-list');
+  list.dataset.repos = JSON.stringify(repos);
+  if (!repos.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">No repositories added yet. Click "Add Repository" to get started.</p>';
+    return;
+  }
+  list.innerHTML = repos.map((r, i) => `
+    <div class="card" style="margin-bottom:.75rem;padding:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+        <strong style="font-size:.85rem;">Repository ${i + 1}</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeProjectRepo(${i})">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" data-repo-idx="${i}" data-repo-field="name" value="${escHtml(r.name || '')}" placeholder="e.g. backend-api">
+      </div>
+      <div class="field">
+        <label>URL or Path</label>
+        <input type="text" data-repo-idx="${i}" data-repo-field="url" value="${escHtml(r.url || '')}" placeholder="e.g. https://github.com/owner/repo.git or /local/path">
+      </div>
+      <div class="field">
+        <label>Scan Type</label>
+        <select data-repo-idx="${i}" data-repo-field="scan_type">
+          <option value="path" ${(r.scan_type || 'path') === 'path' ? 'selected' : ''}>Directory / File</option>
+          <option value="git" ${(r.scan_type || 'path') === 'git' ? 'selected' : ''}>Git History</option>
+          <option value="url" ${(r.scan_type || 'path') === 'url' ? 'selected' : ''}>URL / Website</option>
+        </select>
+      </div>
+    </div>
+  `).join('');
+}
+
+function removeProjectRepo(i) {
+  const list = document.getElementById('project-repos-list');
+  const repos = JSON.parse(list.dataset.repos || '[]');
+  repos.splice(i, 1);
+  renderProjectRepoConfigFields(repos);
+}
+
+function updateProjectRepoFields() {
+  const list = document.getElementById('project-repos-list');
+  const repos = JSON.parse(list.dataset.repos || '[]');
+  list.querySelectorAll('[data-repo-idx]').forEach(el => {
+    const idx = parseInt(el.dataset.repoIdx);
+    const field = el.dataset.repoField;
+    if (repos[idx]) repos[idx][field] = el.value;
+  });
+  list.dataset.repos = JSON.stringify(repos);
+}
+
+async function saveProject() {
+  const id = document.getElementById('project-id').value;
+  const name = document.getElementById('project-name').value.trim();
+  const description = document.getElementById('project-description').value.trim();
+  const defaultScanType = document.getElementById('project-default-scan-type').value;
+  const reposData = document.getElementById('project-repos-list').dataset.repos || '[]';
+  
+  if (!name) { toast('Project name is required.', 'warn'); return; }
+  
+  const payload = { name, description, default_scan_type: defaultScanType, repositories: JSON.parse(reposData) };
+  const url = id ? `/projects/${id}` : '/projects';
+  const method = id ? 'PATCH' : 'POST';
+  
+  const btn = document.querySelector('#project-modal .btn-primary');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Saving…';
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Failed to save project');
+    toast(id ? 'Project updated' : 'Project created', 'success');
+    closeProjectModal();
+    await loadProjects();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+async function scanAllProjectRepos(id) {
+  try {
+    const res = await fetch(`/projects/${id}/scan-all`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Failed to scan project');
+    const data = await res.json();
+    toast(`Scanned ${data.repo_results.length} repos: ${data.total_findings} findings`, 'success');
+    await loadProjects();
+  } catch (e) {
+    toast('Scan failed: ' + e.message, 'error');
+  }
+}
+
+function editProject(id) {
+  fetch(`/projects/${id}`)
+    .then(res => res.json())
+    .then(project => openProjectModal(project))
+    .catch(() => toast('Failed to load project', 'error'));
+}
+
+async function deleteProject(id) {
+  if (!confirm('Delete this project and all its data?')) return;
+  try {
+    const res = await fetch(`/projects/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete project');
+    toast('Project deleted', 'success');
+    await loadProjects();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+async function openProjectDashboard(id) {
+  try {
+    const res = await fetch(`/projects/${id}/dashboard`);
+    if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load dashboard');
+    const data = await res.json();
+    toast(`Project: ${data.project.name} — ${data.stats.total_repos} repos, ${data.stats.total_findings} findings`, 'info');
+  } catch (e) {
+    toast('Dashboard failed: ' + e.message, 'error');
+  }
+}
+
+// Load projects when navigating to projects page
+const originalGoPage3 = goPage;
+goPage = function(id) {
+  originalGoPage3(id);
+  if (id === 'projects') loadProjects();
+};
+
 /* -----------------------------------------------
    INIT
 ----------------------------------------------- */
