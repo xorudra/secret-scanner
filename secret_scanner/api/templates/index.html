@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    /* ── Design Tokens ── */
+    /* -- Design Tokens -- */
     :root {
       --bg:          #07091a;
       --bg-2:        #0d1126;
@@ -50,7 +50,7 @@
       overflow-x: hidden;
     }
 
-    /* ── Animated background ── */
+    /* -- Animated background -- */
     body::before {
       content: '';
       position: fixed; inset: 0; z-index: -1;
@@ -61,7 +61,7 @@
       pointer-events: none;
     }
 
-    /* ── Top navigation bar ── */
+    /* -- Top navigation bar -- */
     .navbar {
       display: flex;
       align-items: center;
@@ -95,7 +95,7 @@
 
     .nav-right { display: flex; align-items: center; gap: .75rem; }
 
-    /* ── Hamburger (mobile only) ── */
+    /* -- Hamburger (mobile only) -- */
     .hamburger {
       display: none;
       background: none; border: 1px solid var(--border);
@@ -122,10 +122,10 @@
     }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
 
-    /* ── Layout ── */
+    /* -- Layout -- */
     .layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 64px); }
 
-    /* ── Sidebar ── */
+    /* -- Sidebar -- */
     .sidebar {
       border-right: 1px solid var(--border);
       padding: 1.5rem 1rem;
@@ -155,20 +155,20 @@
 
     .sidebar-sep { height: 1px; background: var(--border); margin: .75rem .5rem; }
 
-    /* ── Main area ── */
+    /* -- Main area -- */
     .main { padding: 2rem; overflow-y: auto; }
 
-    /* ── Pages ── */
+    /* -- Pages -- */
     .page { display: none; }
     .page.active { display: block; animation: fadeIn .25s ease; }
     @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
 
-    /* ── Section heading ── */
+    /* -- Section heading -- */
     .section-head { margin-bottom: 1.5rem; }
     .section-head h1 { font-size: 1.5rem; font-weight: 800; }
     .section-head p  { color: var(--subtle); font-size: .9rem; margin-top: .3rem; }
 
-    /* ── Cards / Panels ── */
+    /* -- Cards / Panels -- */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -184,7 +184,7 @@
       display: flex; align-items: center; gap: .5rem;
     }
 
-    /* ── Form elements ── */
+    /* -- Form elements -- */
     .field { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
     .field label { font-size: .82rem; font-weight: 600; color: var(--subtle); }
 
@@ -216,7 +216,7 @@
     .input-row > * { flex: 1; }
     .input-row > .btn { flex: 0 0 auto; }
 
-    /* ── Buttons ── */
+    /* -- Buttons -- */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
       padding: .7rem 1.4rem; border-radius: 9px;
@@ -244,7 +244,7 @@
     .btn-danger { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); color: var(--crit); }
     .btn-danger:hover { background: rgba(239,68,68,.25); }
 
-    /* ── Drag-drop zone ── */
+    /* -- Drag-drop zone -- */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: var(--radius);
@@ -264,7 +264,7 @@
       font-size: .82rem; color: var(--safe);
     }
 
-    /* ── Stats grid ── */
+    /* -- Stats grid -- */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -290,13 +290,13 @@
     .stat-safe { color: var(--safe); }
     .stat-blue { color: #60a5fa; }
 
-    /* ── Donut chart ── */
+    /* -- Donut chart -- */
     .chart-row { display: grid; grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: center; }
     .chart-legend { display: flex; flex-direction: column; gap: .6rem; }
     .legend-item { display: flex; align-items: center; gap: .6rem; font-size: .85rem; }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
-    /* ── Toolbar ── */
+    /* -- Toolbar -- */
     .toolbar {
       display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
       margin-bottom: 1rem;
@@ -324,7 +324,7 @@
       font-size: .82rem; width: auto; cursor: pointer;
     }
 
-    /* ── Table ── */
+    /* -- Table -- */
     .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     thead th {
@@ -366,7 +366,7 @@
 
     .row-clickable { cursor: pointer; }
 
-    /* ── Badges ── */
+    /* -- Badges -- */
     .badge {
       display: inline-flex; align-items: center; gap: .3rem;
       padding: .25rem .6rem; border-radius: 6px;
@@ -397,7 +397,7 @@
       display: inline-block;
     }
 
-    /* ── Score bar ── */
+    /* -- Score bar -- */
     .score-bar { display: flex; align-items: center; gap: .5rem; }
     .bar-track {
       height: 5px; border-radius: 3px;
@@ -406,7 +406,7 @@
     }
     .bar-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
 
-    /* ── Pagination ── */
+    /* -- Pagination -- */
     .pagination {
       display: flex; align-items: center; gap: .5rem;
       justify-content: center; padding: .75rem 1rem;
@@ -423,7 +423,7 @@
     .page-btn:disabled { opacity: .35; cursor: not-allowed; }
     .page-info { font-size: .8rem; color: var(--muted); padding: 0 .25rem; }
 
-    /* ── Empty / Loading state ── */
+    /* -- Empty / Loading state -- */
     .empty-state {
       text-align: center; padding: 4rem 1rem;
       display: flex; flex-direction: column; align-items: center; gap: .75rem;
@@ -432,7 +432,7 @@
     .empty-state h3   { font-size: 1.05rem; font-weight: 600; }
     .empty-state p    { font-size: .88rem; color: var(--subtle); }
 
-    /* ── Spinner ── */
+    /* -- Spinner -- */
     .spinner {
       display: inline-block;
       width: 14px; height: 14px;
@@ -444,7 +444,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Toast notifications ── */
+    /* -- Toast notifications -- */
     #toast-container {
       position: fixed; bottom: 1.5rem; right: 1.5rem;
       z-index: 9999; display: flex; flex-direction: column; gap: .6rem;
@@ -466,7 +466,7 @@
     .toast.toast-warn    { border-left: 3px solid var(--med); }
     @keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
-    /* ── Progress bar ── */
+    /* -- Progress bar -- */
     .scan-progress { display: none; margin-top: 1rem; }
     .scan-progress.visible { display: block; }
     .progress-label { font-size: .82rem; color: var(--subtle); margin-bottom: .4rem; display: flex; justify-content: space-between; }
@@ -481,7 +481,7 @@
     }
     @keyframes shimmer { to { background-position: -200% center; } }
 
-    /* ── Rules page ── */
+    /* -- Rules page -- */
     .rules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     .rule-card {
       background: var(--surface);
@@ -496,7 +496,7 @@
     .rule-card-desc  { font-size: .8rem; color: var(--subtle); margin-bottom: .65rem; line-height: 1.5; }
     .rule-pattern    { font-family: 'Fira Code', monospace; font-size: .72rem; color: var(--cyan); background: rgba(0,0,0,.3); border-radius: 6px; padding: .4rem .6rem; word-break: break-all; border: 1px solid var(--border); }
 
-    /* ── History page ── */
+    /* -- History page -- */
     .history-list { display: flex; flex-direction: column; gap: .75rem; }
     .history-item {
       display: flex; align-items: center; gap: 1rem;
@@ -510,7 +510,7 @@
     .h-meta  { font-size: .76rem; color: var(--muted); margin-top: .15rem; }
     .h-count { margin-left: auto; }
 
-    /* ── Keyboard hint ── */
+    /* -- Keyboard hint -- */
     .kbd {
       display: inline-flex; align-items: center; gap: .2rem;
       background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
@@ -518,7 +518,7 @@
       font-family: 'Fira Code', monospace; font-size: .7rem; color: var(--muted);
     }
 
-    /* ── Responsive ── */
+    /* -- Responsive -- */
     @media (max-width: 768px) {
       .layout { grid-template-columns: 1fr; }
       .sidebar {
@@ -536,7 +536,7 @@
 </head>
 <body>
 
-<!-- ── Navbar ── -->
+<!-- -- Navbar -- -->
 <nav class="navbar">
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar">
@@ -553,10 +553,10 @@
   </div>
 </nav>
 
-<!-- ── Layout ── -->
+<!-- -- Layout -- -->
 <div class="layout">
 
-  <!-- ── Sidebar ── -->
+  <!-- -- Sidebar -- -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-label">Scan</div>
     <button class="nav-item active" id="nav-path"    onclick="goPage('path')">
@@ -592,12 +592,12 @@
     </button>
   </aside>
 
-  <!-- ── Main ── -->
+  <!-- -- Main -- -->
   <main class="main" id="main-content">
 
-    <!-- ╔══════════════════════════════╗ -->
-    <!-- ║  Page: Directory / File Scan ║ -->
-    <!-- ╚══════════════════════════════╝ -->
+    <!-- +------------------------------+ -->
+    <!-- ¦  Page: Directory / File Scan ¦ -->
+    <!-- +------------------------------+ -->
     <section class="page active" id="page-path">
       <div class="section-head">
         <h1><i class="fa-solid fa-folder-open" style="color:var(--indigo)"></i> Directory / File Scanner</h1>
@@ -638,9 +638,9 @@
       </div>
     </section>
 
-    <!-- ╔═════════════════════╗ -->
-    <!-- ║  Page: Code Snippet ║ -->
-    <!-- ╚═════════════════════╝ -->
+    <!-- +---------------------+ -->
+    <!-- ¦  Page: Code Snippet ¦ -->
+    <!-- +---------------------+ -->
     <section class="page" id="page-text">
       <div class="section-head">
         <h1><i class="fa-solid fa-file-code" style="color:var(--cyan)"></i> Code Snippet Scanner</h1>
@@ -686,9 +686,9 @@
       </div>
     </section>
 
-    <!-- ╔═══════════════════════╗ -->
-    <!-- ║  Page: Git History    ║ -->
-    <!-- ╚═══════════════════════╝ -->
+    <!-- +-----------------------+ -->
+    <!-- ¦  Page: Git History    ¦ -->
+    <!-- +-----------------------+ -->
     <section class="page" id="page-git">
       <div class="section-head">
         <h1><i class="fa-brands fa-git-alt" style="color:#f97316"></i> Git History Scanner</h1>
@@ -724,9 +724,9 @@
       </div>
     </section>
 
-    <!-- ╔════════════════════════════╗ -->
-    <!-- ║  Page: URL / Website Scan ║ -->
-    <!-- ╚════════════════════════════╝ -->
+    <!-- +----------------------------+ -->
+    <!-- ¦  Page: URL / Website Scan ¦ -->
+    <!-- +----------------------------+ -->
     <section class="page" id="page-url">
       <div class="section-head">
         <h1><i class="fa-solid fa-globe" style="color:var(--cyan)"></i> URL / Website Scanner</h1>
@@ -760,9 +760,6 @@
             Scan linked JS/CSS files (experimental)
           </label>
         </div>
-        <button class="btn btn-primary" id="btn-url" onclick="runUrlScan()" style="margin-top:.75rem;">
-          <i class="fa-solid fa-globe"></i> Scan Website
-        </button>
         <div class="scan-progress" id="prog-url">
           <div class="progress-label"><span>Fetching & scanning…</span><span id="prog-url-txt">please wait</span></div>
           <div class="progress-track"><div class="progress-fill"></div></div>
@@ -775,9 +772,9 @@
       </div>
     </section>
 
-    <!-- ╔═══════════════════╗ -->
-    <!-- ║  Page: Results    ║ -->
-    <!-- ╚═══════════════════╝ -->
+    <!-- +-------------------+ -->
+    <!-- ¦  Page: Results    ¦ -->
+    <!-- +-------------------+ -->
     <section class="page" id="page-results">
       <div class="section-head">
         <h1><i class="fa-solid fa-table-list" style="color:var(--indigo)"></i> Detection Results</h1>
@@ -817,12 +814,12 @@
         <table id="results-table">
           <thead>
             <tr>
-              <th onclick="sortBy('severity')"  id="th-severity">Severity<span class="sort-icon">↕</span></th>
-              <th onclick="sortBy('rule_name')"  id="th-rule_name">Rule<span class="sort-icon">↕</span></th>
+              <th onclick="sortBy('severity')"  id="th-severity">Severity<span class="sort-icon">?</span></th>
+              <th onclick="sortBy('rule_name')"  id="th-rule_name">Rule<span class="sort-icon">?</span></th>
               <th>File</th>
-              <th onclick="sortBy('line')"       id="th-line">Line<span class="sort-icon">↕</span></th>
+              <th onclick="sortBy('line')"       id="th-line">Line<span class="sort-icon">?</span></th>
               <th>Masked Secret</th>
-              <th onclick="sortBy('score')"      id="th-score">Score<span class="sort-icon">↕</span></th>
+              <th onclick="sortBy('score')"      id="th-score">Score<span class="sort-icon">?</span></th>
             </tr>
           </thead>
           <tbody id="results-body">
@@ -840,9 +837,9 @@
       <div id="result-count-label" style="font-size:.78rem;color:var(--muted);margin-top:.5rem;text-align:right;"></div>
     </section>
 
-    <!-- ╔══════════════════╗ -->
-    <!-- ║  Page: Overview  ║ -->
-    <!-- ╚══════════════════╝ -->
+    <!-- +------------------+ -->
+    <!-- ¦  Page: Overview  ¦ -->
+    <!-- +------------------+ -->
     <section class="page" id="page-overview">
       <div class="section-head">
         <h1><i class="fa-solid fa-chart-pie" style="color:var(--violet)"></i> Scan Overview</h1>
@@ -896,9 +893,9 @@
       </div>
     </section>
 
-    <!-- ╔══════════════════╗ -->
-    <!-- ║  Page: History   ║ -->
-    <!-- ╚══════════════════╝ -->
+    <!-- +------------------+ -->
+    <!-- ¦  Page: History   ¦ -->
+    <!-- +------------------+ -->
     <section class="page" id="page-history">
       <div class="section-head">
         <h1><i class="fa-solid fa-clock-rotate-left" style="color:var(--cyan)"></i> Scan History</h1>
@@ -916,9 +913,9 @@
       </div>
     </section>
 
-    <!-- ╔═══════════════════════╗ -->
-    <!-- ║  Page: Detection Rules║ -->
-    <!-- ╚═══════════════════════╝ -->
+    <!-- +-----------------------+ -->
+    <!-- ¦  Page: Detection Rules¦ -->
+    <!-- +-----------------------+ -->
     <section class="page" id="page-rules">
       <div class="section-head">
         <h1><i class="fa-solid fa-sliders" style="color:var(--indigo)"></i> Detection Rules</h1>
@@ -935,13 +932,13 @@
   </main>
 </div>
 
-<!-- ── Toast container ── -->
+<!-- -- Toast container -- -->
 <div id="toast-container"></div>
 
 <script>
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    STATE
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 let allFindings    = [];   // raw findings from last scan
 let filteredRows   = [];   // after search/filter
 let dismissedFPs   = new Set(); // fingerprints dismissed by user
@@ -955,9 +952,9 @@ let scanHistory    = [];   // [{label, icon, iconBg, findings, ts}]
 const PAGE_SIZE    = 100;  // rows per page
 let currentPage    = 1;
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    MOBILE SIDEBAR
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
 }
@@ -969,9 +966,9 @@ document.getElementById('main-content').addEventListener('click', () => {
   }
 });
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    NAVIGATION
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function goPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -982,9 +979,9 @@ function goPage(id) {
   if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    TOAST
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function toast(msg, type='info', duration=4000) {
   const icons = { success:'fa-circle-check', error:'fa-circle-exclamation', warn:'fa-triangle-exclamation', info:'fa-circle-info' };
   const colors = { success:'var(--safe)', error:'var(--crit)', warn:'var(--med)', info:'var(--indigo)' };
@@ -995,9 +992,9 @@ function toast(msg, type='info', duration=4000) {
   setTimeout(() => el.remove(), duration);
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    PROGRESS
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function showProgress(id) { document.getElementById(id).classList.add('visible'); }
 function hideProgress(id) { document.getElementById(id).classList.remove('visible'); }
 
@@ -1013,9 +1010,9 @@ function setBtn(id, loading, originalHTML) {
   }
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    SCAN — PATH
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 async function runPathScan() {
   const path = document.getElementById('path-input').value.trim() || '.';
   lastTarget  = path;
@@ -1030,9 +1027,9 @@ async function runPathScan() {
   finally { setBtn('btn-path', false); hideProgress('prog-path'); }
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    SCAN — TEXT
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 async function runTextScan() {
   const text = document.getElementById('text-snippet').value;
   if (!text.trim()) { toast('Paste some code first.', 'warn'); return; }
@@ -1048,9 +1045,9 @@ async function runTextScan() {
   finally { setBtn('btn-text', false); hideProgress('prog-text'); }
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    SCAN — GIT
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 async function runGitScan() {
   const path = document.getElementById('git-path').value.trim() || '.';
   const maxVal = document.getElementById('git-max-commits').value.trim();
@@ -1073,11 +1070,8 @@ async function runGitScan() {
   finally { setBtn('btn-git', false); hideProgress('prog-git'); }
 }
 
-/* ═══════════════════════════════════════════════
-   
-
-/* ============================================================
-   SCAN -- URL / WEBSITE
+/* -----------------------------------------------
+   SCAN — URL / WEBSITE
 ============================================================ */
 async function runUrlScan() {
   const url = document.getElementById('url-input').value.trim();
@@ -1108,8 +1102,9 @@ async function runUrlScan() {
    COMMIT FINDINGS
 ============================================================ */
 
-COMMIT FINDINGS — update all views
-═══════════════════════════════════════════════ */
+/* ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+   COMMIT FINDINGS — update all views
+──────────────────────────────────────────────────────────── */
 function commitFindings(findings, label, icon, iconBg) {
   allFindings = findings;
   filteredRows = [...findings];
@@ -1135,15 +1130,15 @@ function commitFindings(findings, label, icon, iconBg) {
   renderTable();
   renderOverview();
 
-  if (findings.length === 0) toast('✅ All clean — no secrets detected!', 'success');
+  if (findings.length === 0) toast('? All clean — no secrets detected!', 'success');
   else toast(`Found ${findings.length} secret${findings.length===1?'':'s'} in "${label}"`, 'error');
 
   goPage('results');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    TYPE FILTER
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function updateTypeFilter(findings) {
   const sel = document.getElementById('type-filter');
   const types = [...new Set(findings.map(f => f.rule_name || f.type).filter(Boolean))].sort();
@@ -1153,9 +1148,9 @@ function updateTypeFilter(findings) {
   ).join('');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    FILTER + SEARCH
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function applyFilters() {
   const q    = document.getElementById('search-input').value.toLowerCase();
   const sev  = document.getElementById('sev-filter').value.toUpperCase();
@@ -1172,15 +1167,15 @@ function applyFilters() {
   renderTable();
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    SORT
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 const SEV_ORDER = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
 function sortBy(key) {
   if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
   document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
   const th = document.getElementById('th-' + key);
-  if (th) { th.classList.add('sorted'); th.querySelector('.sort-icon').textContent = sortAsc ? '↑' : '↓'; }
+  if (th) { th.classList.add('sorted'); th.querySelector('.sort-icon').textContent = sortAsc ? '?' : '?'; }
   doSort(key, true);
   renderTable();
 }
@@ -1194,9 +1189,9 @@ function doSort(key, _render) {
   });
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    RENDER TABLE  (paginated — max PAGE_SIZE rows)
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function sevBadge(sev) {
   const s = (sev||'MEDIUM').toUpperCase();
   const cls = { CRITICAL:'badge-critical', HIGH:'badge-high', MEDIUM:'badge-medium', LOW:'badge-low' }[s] || 'badge-medium';
@@ -1246,7 +1241,7 @@ function renderTable() {
 
   tbody.innerHTML = pageRows.map((f, i) => {
     const globalI = pageStart + i;
-    // FIX: normalise path separators correctly (backslash → forward-slash)
+    // FIX: normalise path separators correctly (backslash ? forward-slash)
     const fname = f.file ? f.file.replace(/\\/g, '/').split('/').slice(-2).join('/') : '';
     const commit = f.commit_hash
       ? `<br><span style="font-size:.72rem;color:var(--muted)">commit <code>${f.commit_hash.slice(0,8)}</code> · ${escHtml(f.commit_author||'')}</span>`
@@ -1345,9 +1340,9 @@ function dismissFinding(i) {
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    OVERVIEW
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function renderOverview() {
   const counts = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 };
   const fileCounts = {};
@@ -1457,9 +1452,9 @@ function renderTopFiles(fileCounts) {
       }).join('');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    HISTORY (with localStorage persistence)
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 const HISTORY_KEY = 'secretscanner_history_v2';
 
 function saveHistory() {
@@ -1540,9 +1535,9 @@ function restoreHistory(i) {
   toast(`Restored scan: ${s.label}`, 'info');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    RULES PAGE
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 let _rulesLoaded = false;
 async function loadRules() {
   if (_rulesLoaded) return;
@@ -1569,9 +1564,9 @@ async function loadRules() {
   }
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    DRAG & DROP / FILE PICK
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
 function onDragLeave()  { document.getElementById('drop-zone').classList.remove('dragover'); }
 function onDrop(e) {
@@ -1592,16 +1587,16 @@ function readFile(file) {
     document.getElementById('drop-icon').className = 'fa-solid fa-file-check';
     document.getElementById('drop-icon').style.color = 'var(--safe)';
     const fn = document.getElementById('drop-filename');
-    fn.textContent = '📄 ' + file.name;
+    fn.textContent = '?? ' + file.name;
     fn.style.display = 'block';
     toast(`Loaded: ${file.name}`, 'success');
   };
   reader.readAsText(file);
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    HELPERS
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function loadSampleLeak() {
   const parts = [
     '# \u26a0 Demo credentials \u2014 do NOT use in real code',
@@ -1640,9 +1635,9 @@ function clearResults() {
   toast('Results cleared.', 'info');
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    EXPORTS
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 function downloadBlob(content, filename, type) {
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([content], {type})),
@@ -1700,9 +1695,9 @@ async function exportSARIF() {
   } catch(e) { toast('Export failed: ' + e.message, 'error'); }
 }
 
-/* ═══════════════════════════════════════════════
+/* -----------------------------------------------
    INIT
-═══════════════════════════════════════════════ */
+----------------------------------------------- */
 window.addEventListener('DOMContentLoaded', () => {
   // Seed overview chart with empty state
   drawDonut({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
