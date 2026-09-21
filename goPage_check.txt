@@ -1,0 +1,11 @@
+function goPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+  if (id === 'rules') loadRules();
+  // Close mobile sidebar on navigation
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+}
+
+/* ═════════

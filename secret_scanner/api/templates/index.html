@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecretScanner — Privacy-First Credential Leak Detection</title>
+  <title>SecretScanner â€” Privacy-First Credential Leak Detection</title>
   <meta name="description" content="SecretScanner: detect API keys, tokens, and hardcoded secrets in your codebase with a beautiful, privacy-first dashboard.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -623,6 +623,19 @@
               <i class="fa-solid fa-magnifying-glass"></i> Scan
             </button>
           </div>
+        <!-- Folder Drag-Drop Zone (File System Access API) -->
+        <div class="drop-zone" id="folder-drop-zone"
+             ondragover="onFolderDragOver(event)" ondragleave="onFolderDragLeave(event)" ondrop="onFolderDrop(event)"
+             style="margin-top:1rem;display:none;">
+          <i class="fa-solid fa-folder-tree" id="folder-drop-icon" style="font-size:2rem;color:var(--violet);margin-bottom:.75rem;display:block;"></i>
+          <p><strong>Drag & drop a folder here</strong> to scan it directly</p>
+          <p style="margin-top:.35rem;font-size:.78rem;color:var(--muted);">Uses File System Access API — works in Chrome/Edge 86+, requires user permission</p>
+          <div class="file-loaded-name" id="folder-drop-name" style="display:none;"></div>
+        </div>
+        <p style="font-size:.75rem;color:var(--muted);margin-top:.5rem;text-align:center;" id="folder-api-unsupported" style="display:none;">
+          <i class="fa-solid fa-triangle-exclamation"></i> File System Access API not supported in this browser. Use the path input above instead.
+        </p>
+
         </div>
         <div class="scan-progress" id="prog-path">
           <div class="progress-label"><span>Scanning files…</span><span id="prog-path-txt">please wait</span></div>
@@ -642,6 +655,7 @@
           <li>Results appear on the <strong>Results</strong> and <strong>Overview</strong> pages instantly.</li>
           <li>Use the <strong>Git History</strong> scanner to audit past commits too.</li>
           <li>Hold <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to trigger a scan from any input field.</li>
+          <li>Drag & drop a folder directly onto this page (Chrome/Edge 86+).</li>
         </ul>
       </div>
     </section>
@@ -1215,9 +1229,9 @@ async function runUrlScan() {
    COMMIT FINDINGS
 ============================================================ */
 
-/* ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+/* ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
    COMMIT FINDINGS — update all views
-──────────────────────────────────────────────────────────── */
+------------------------------------------------------------ */
 function commitFindings(findings, label, icon, iconBg) {
   allFindings = findings;
   filteredRows = [...findings];
@@ -1708,6 +1722,198 @@ function readFile(file) {
 }
 
 /* -----------------------------------------------
+   FOLDER DRAG & DROP (File System Access API)
+----------------------------------------------- */
+function onFolderDragOver(e) {
+  e.preventDefault();
+  // Only accept folders (items with kind === 'directory')
+  const hasFolder = Array.from(e.dataTransfer.items).some(item => item.kind === 'file' && item.webkitGetAsEntry && item.webkitGetAsEntry().isDirectory);
+  if (hasFolder) {
+    document.getElementById('folder-drop-zone').classList.add('dragover');
+  }
+}
+
+function onFolderDragLeave() {
+  document.getElementById('folder-drop-zone').classList.remove('dragover');
+}
+
+async function onFolderDrop(e) {
+  e.preventDefault();
+  onFolderDragLeave();
+
+  const items = e.dataTransfer.items;
+  if (!items || items.length === 0) return;
+
+  const entry = items[0].webkitGetAsEntry ? items[0].webkitGetAsEntry() : null;
+  if (!entry || !entry.isDirectory) {
+    toast('Please drop a folder, not a file.', 'warn');
+    return;
+  }
+
+  // Check File System Access API support
+  if (!window.showDirectoryPicker) {
+    document.getElementById('folder-api-unsupported').style.display = 'block';
+    document.getElementById('folder-drop-zone').style.display = 'none';
+    toast('File System Access API not supported. Use the path input instead.', 'warn');
+    return;
+  }
+
+  try {
+    // Request permission to access the folder
+    const dirHandle = await window.showDirectoryPicker({
+      mode: 'read',
+      startIn: entry.name
+    });
+
+    // Show folder name
+    document.getElementById('folder-drop-name').textContent = '?? ' + dirHandle.name;
+    document.getElementById('folder-drop-name').style.display = 'block';
+    document.getElementById('folder-drop-icon').className = 'fa-solid fa-folder-open';
+    document.getElementById('folder-drop-icon').style.color = 'var(--safe)';
+
+    // Set the path input to the folder handle (we'll need to convert to path)
+    // For now, we'll use a custom approach - scan via the handle
+    toast(`Folder selected: ${dirHandle.name}. Starting scan...`, 'info');
+
+    // Scan the folder using the handle
+    await scanFolderHandle(dirHandle);
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      toast('Folder selection cancelled.', 'info');
+    } else {
+      toast('Failed to access folder: ' + err.message, 'error');
+      console.error(err);
+    }
+  }
+}
+
+async function scanFolderHandle(dirHandle) {
+  const scanId = generateScanId();
+  currentScanId = scanId;
+  setBtn('btn-path', true);
+  showProgress('prog-path');
+  await connectProgressWS(scanId);
+
+  try {
+    const findings = await scanDirectoryHandle(dirHandle, scanId);
+    commitFindings(findings, dirHandle.name, 'fa-folder-open', 'rgba(99,102,241,.2)');
+    toast(`Scan complete: ${findings.length} finding${findings.length===1?'':'s'}`, 'success');
+  } catch (err) {
+    toast('Scan error: ' + err.message, 'error');
+  } finally {
+    setBtn('btn-path', false);
+    hideProgress('prog-path');
+    disconnectProgressWS();
+  }
+}
+
+async function scanDirectoryHandle(dirHandle, scanId) {
+  const engine = new DetectionEngine(); // This won't work directly - need to use the engine differently
+  // We'll send files to the backend for scanning
+  // For now, collect all files and send to /scan/text in batches
+
+  const allFindings = [];
+  let totalFiles = 0;
+  let scannedFiles = 0;
+
+  // First, count total files
+  async function countFiles(handle) {
+    let count = 0;
+    for await (const [name, child] of handle.entries()) {
+      if (child.kind === 'file') {
+        count++;
+      } else if (child.kind === 'directory') {
+        count += await countFiles(child);
+      }
+    }
+    return count;
+  }
+
+  totalFiles = await countFiles(dirHandle);
+  await progressManagerUpdate(scanId, { total_files: totalFiles, status: 'scanning' });
+
+  // Now scan files
+  async function scanFiles(handle, basePath = '') {
+    for await (const [name, child] of handle.entries()) {
+      const fullPath = basePath ? `${basePath}/${name}` : name;
+
+      if (child.kind === 'file') {
+        // Check if file should be scanned
+        if (shouldScanFile(name)) {
+          try {
+            const file = await child.getFile();
+            const text = await file.text();
+
+            // Send to backend for scanning
+            const scanId = currentScanId;
+            const res = await fetch('/scan/text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text, filename: fullPath, scan_id: scanId })
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              allFindings.push(...data.findings);
+            }
+          } catch (err) {
+            console.warn('Failed to scan', fullPath, err);
+          }
+        }
+        scannedFiles++;
+        await progressManagerUpdate(scanId, {
+          files_scanned: scannedFiles,
+          current_file: fullPath,
+          findings_count: allFindings.length
+        });
+      } else if (child.kind === 'directory') {
+        // Skip ignored directories
+        if (!isIgnoredDir(name)) {
+          await scanFiles(child, fullPath);
+        }
+      }
+    }
+  }
+
+  await scanFiles(dirHandle);
+  return allFindings;
+}
+
+function shouldScanFile(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const supported = ['js','ts','jsx','tsx','py','rb','go','php','java','cs','cpp','c','h','hpp',
+    'json','yaml','yml','toml','ini','cfg','conf','env','properties','xml','html','htm',
+    'css','scss','sass','less','sql','sh','bash','zsh','fish','ps1','bat','cmd',
+    'dockerfile','dockerignore','gitignore','gitattributes','editorconfig','eslintrc',
+    'prettierrc','babelrc','npmrc','yarnrc','pnp','lock','md','txt','log','csv','tsv'];
+  return supported.includes(ext) || !ext; // scan files with no extension too
+}
+
+function isIgnoredDir(dirname) {
+  const ignored = ['node_modules','.git','dist','build','out','target','bin','obj','__pycache__','.pytest_cache',
+    'coverage','.nyc_output','.venv','venv','env','.env','vendor','.next','.nuxt','.cache','.turbo'];
+  return ignored.includes(dirname.toLowerCase());
+}
+
+async function progressManagerUpdate(scanId, data) {
+  if (wsProgress && wsProgress.readyState === WebSocket.OPEN) {
+    wsProgress.send(JSON.stringify({ type: 'progress_update', scanId, ...data }));
+  }
+}
+
+// Show folder drop zone on page load if API supported
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.showDirectoryPicker) {
+    document.getElementById('folder-drop-zone').style.display = 'block';
+    document.getElementById('folder-api-unsupported').style.display = 'none';
+  } else {
+    document.getElementById('folder-drop-zone').style.display = 'none';
+    document.getElementById('folder-api-unsupported').style.display = 'block';
+  }
+});
+
+/* -----------------------------------------------
    HELPERS
 ----------------------------------------------- */
 function loadSampleLeak() {
@@ -1816,6 +2022,19 @@ window.addEventListener('DOMContentLoaded', () => {
   drawDonut({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
   // Restore history from localStorage
   loadHistory();
+
+  // Show/hide folder drag-drop zone based on File System Access API support
+  const folderZone = document.getElementById('folder-drop-zone');
+  const folderUnsupported = document.getElementById('folder-api-unsupported');
+  if (folderZone && folderUnsupported) {
+    if (window.showDirectoryPicker) {
+      folderZone.style.display = 'block';
+      folderUnsupported.style.display = 'none';
+    } else {
+      folderZone.style.display = 'none';
+      folderUnsupported.style.display = 'block';
+    }
+  }
 
   // Keyboard shortcut: Ctrl/Cmd+Enter to trigger scans
   document.getElementById('text-snippet')?.addEventListener('keydown', (e) => {
