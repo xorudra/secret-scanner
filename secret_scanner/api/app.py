@@ -1,4 +1,4 @@
-"""secret_scanner.api.app
+﻿"""secret_scanner.api.app
 FastAPI application exposing the secret scanning engine via REST API and a
 premium, feature-rich Web GUI dashboard.
 """
@@ -24,6 +24,7 @@ from secret_scanner.core.reporter import (
 )
 from secret_scanner.core.rules import load_rules
 from secret_scanner.git_scanner import scan_repository
+from secret_scanner.api.scheduler import router as scheduler_router
 
 
 # --- WebSocket Progress Manager ----------------------------------------------
@@ -232,7 +233,7 @@ async def create_rule(req: RuleCreateRequest):
     return {"success": True, "rule": new_rule}
 
 
-# ─── WebSocket Endpoint ─────────────────────────────────────────────────────
+# â”€â”€â”€ WebSocket Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.websocket("/ws/progress/{scan_id}")
 async def websocket_progress(websocket: WebSocket, scan_id: str):
     """WebSocket endpoint for real-time scan progress updates."""
@@ -249,7 +250,7 @@ async def websocket_progress(websocket: WebSocket, scan_id: str):
         progress_manager.disconnect(scan_id)
 
 
-# ─── Scan Endpoints with Progress ────────────────────────────────────────────
+# â”€â”€â”€ Scan Endpoints with Progress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.post("/scan", response_model=ScanResponse)
 async def scan_directory(req: ScanRequest):
     """Scan a file or directory for secrets."""
@@ -429,6 +430,7 @@ async def export_pdf_report(req: ReportExportRequest):
     )
 
 
+app.include_router(scheduler_router)
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
     """Serves the premium Web GUI dashboard (v2.1)."""

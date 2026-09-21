@@ -592,6 +592,9 @@
     <button class="nav-item" id="nav-history" onclick="goPage('history')">
       <i class="fa-solid fa-clock-rotate-left"></i> History
     </button>
+    <button class="nav-item" id="nav-schedule" onclick="goPage('schedule')">
+      <i class="fa-solid fa-calendar-days"></i> Scheduling
+    </button>
 
     <div class="sidebar-sep"></div>
     <div class="sidebar-label">Config</div>
@@ -932,6 +935,88 @@
           <div class="icon"><i class="fa-solid fa-clock"></i></div>
           <h3>No history yet</h3>
           <p>Completed scans will appear here and persist across page reloads.</p>
+        </div>
+      </div>
+    <!-- +-----------------------+ -->
+    <!-- ¦  Page: Scheduling     ¦ -->
+    <!-- +-----------------------+ -->
+    <section class="page" id="page-schedule">
+      <div class="section-head">
+        <h1><i class="fa-solid fa-calendar-days" style="color:var(--violet)"></i> Scheduled Scans</h1>
+        <p>Automate recurring scans with cron expressions. Configure webhooks for notifications.</p>
+      </div>
+
+      <!-- Add Schedule Modal -->
+      <div class="modal-overlay" id="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+        <div class="modal" style="max-width: 680px;">
+          <div class="modal-header">
+            <h3 id="schedule-modal-title"><i class="fa-solid fa-plus"></i> Create Schedule</h3>
+            <button class="modal-close" onclick="closeScheduleModal()" aria-label="Close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="schedule-form">
+              <input type="hidden" id="schedule-id">
+              <div class="field">
+                <label>Schedule Name</label>
+                <input type="text" id="schedule-name" placeholder="e.g. Nightly Repo Scan" required>
+              </div>
+              <div class="field">
+                <label>Cron Expression</label>
+                <input type="text" id="schedule-cron" placeholder="e.g. 0 2 * * * (daily at 2 AM)" required>
+                <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">
+                  <a href="https://crontab.guru/" target="_blank" style="color:var(--cyan);">crontab.guru</a> for reference |
+                  <code>0 2 * * *</code> = daily 2 AM | <code>0 */6 * * *</code> = every 6 hours | <code>0 0 * * 0</code> = weekly Sunday
+                </p>
+              </div>
+              <div class="field">
+                <label>Scan Type</label>
+                <select id="schedule-scan-type" onchange="updateScheduleConfigFields()">
+                  <option value="path">Directory / File</option>
+                  <option value="git">Git History</option>
+                  <option value="url">URL / Website</option>
+                </select>
+              </div>
+              <div id="schedule-config-fields">
+                <!-- Dynamic fields based on scan type -->
+              </div>
+              <div class="field">
+                <label>Webhook URL (optional)</label>
+                <input type="url" id="schedule-webhook" placeholder="https://your-webhook.example.com/secret-scanner">
+                <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">POST with JSON payload on each scan completion</p>
+              </div>
+              <div class="field">
+                <label>Webhook Secret (optional)</label>
+                <input type="text" id="schedule-webhook-secret" placeholder="HMAC secret for signature verification">
+                <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">Used to sign payloads with HMAC-SHA256 (X-SecretScanner-Signature header)</p>
+              </div>
+              <div class="field">
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
+                  <input type="checkbox" id="schedule-enabled" checked>
+                  <span>Enabled</span>
+                </label>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost btn-sm" onclick="closeScheduleModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+            <button class="btn btn-primary" onclick="saveSchedule()"><i class="fa-solid fa-save"></i> Save Schedule</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+        <div></div>
+        <button class="btn btn-primary" onclick="openScheduleModal()"><i class="fa-solid fa-plus"></i> Add Schedule</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-list"></i> Scheduled Scans</div>
+        <div id="schedules-list">
+          <div class="empty-state">
+            <div class="icon"><i class="fa-solid fa-calendar-clock"></i></div>
+            <h3>No schedules yet</h3>
+            <p>Create a scheduled scan to automate recurring secret detection.</p>
+          </div>
         </div>
       </div>
     </section>
