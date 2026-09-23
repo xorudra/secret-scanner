@@ -184,7 +184,6 @@ def create_rule(req: RuleCreateRequest):
     import re
     from pathlib import Path
 
-    import yaml
     
     # Validate regex
     try:
@@ -202,33 +201,33 @@ def create_rule(req: RuleCreateRequest):
     
     rules_file = Path(__file__).parent.parent.parent / "rules" / "default_rules.yaml"
     
-    # Load existing
-    with open(rules_file, 'r') as f:
-        data = yaml.safe_load(f) or {"rules": []}
-    
-    # Check for duplicate ID
-    if any(r.get('id') == req.id for r in data.get('rules', [])):
+    # Check for duplicate ID without rewriting the file (preserves comments/formatting)
+    existing = load_rules()
+    if any(r.rule_id == req.id for r in existing):
         raise HTTPException(status_code=409, detail=f"Rule with ID '{req.id}' already exists")
     
-    # Add new rule
-    new_rule = {
-        "id": req.id,
-        "name": req.name,
-        "pattern": req.pattern,
-        "severity": req.severity.upper(),
-        "description": req.description
-    }
-    data.setdefault("rules", []).append(new_rule)
+    # Append the new rule as raw YAML so existing comments and formatting survive
+    bs = "\\"
+    safe_pattern = req.pattern.replace(bs, bs + bs).replace('"', bs + '"')
+    safe_desc = req.description.replace('"', bs + '"')
+    entry = (
+        f"\n  - id: {req.id}\n"
+        f"    name: \"{req.name}\"\n"
+        f"    pattern: \"{safe_pattern}\"\n"
+        f"    severity: \"{req.severity.upper()}\"\n"
+        f"    description: \"{safe_desc}\"\n"
+    )
+    with open(rules_file, "a", encoding="utf-8") as f:
+        f.write(entry)
     
-    # Write back
-    with open(rules_file, 'w') as f:
-        yaml.dump(data, f, sort_keys=False, allow_unicode=True)
+    # Reset the engine's cached rule patterns so the next scan picks up the new rule
+    import secret_scanner.core.engine as _engine
+    _engine._cached_patterns = None
     
-    # Clear rules cache so next load picks up new rule
-    from secret_scanner.core.rules import load_rules
-    load_rules.cache_clear()
-    
-    return {"success": True, "rule": new_rule}
+    return {"success": True, "rule": {
+        "id": req.id, "name": req.name, "pattern": req.pattern,
+        "severity": req.severity.upper(), "description": req.description,
+    }}
 
 
 # ─── WebSocket Endpoint ─────────────────────────────────────────────────────
