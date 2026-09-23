@@ -1150,6 +1150,9 @@
         <h1><i class="fa-solid fa-sliders" style="color:var(--indigo)"></i> Detection Rules</h1>
         <p>All active rules loaded from <code>rules/default_rules.yaml</code>. Each rule specifies a regex pattern and severity.</p>
       </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+        <button class="btn btn-primary" onclick="openRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button>
+      </div>
       <div id="rules-container">
         <div class="empty-state">
           <div class="icon"><i class="fa-solid fa-gear fa-spin"></i></div>
@@ -1163,6 +1166,48 @@
 
 <!-- -- Toast container -- -->
 <div id="toast-container"></div>
+<!-- -- Rule Editor Modal -- -->
+<div class="modal-overlay" id="rule-modal" role="dialog" aria-modal="true" aria-labelledby="rule-modal-title">
+  <div class="modal" style="max-width: 640px;">
+    <div class="modal-header">
+      <h3 id="rule-modal-title"><i class="fa-solid fa-sliders"></i> Add Detection Rule</h3>
+      <button class="modal-close" onclick="closeRuleModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Rule ID</label>
+        <input type="text" id="rule-id" placeholder="e.g. my_custom_token (lowercase, underscores)">
+      </div>
+      <div class="field">
+        <label>Rule Name</label>
+        <input type="text" id="rule-name" placeholder="e.g. My Custom Token">
+      </div>
+      <div class="field">
+        <label>Regex Pattern</label>
+        <input type="text" id="rule-pattern" placeholder="e.g. mycompany_[A-Za-z0-9]{32}">
+        <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">Use a capture group <code>(...)</code> to control which part of the match is treated as the secret.</p>
+      </div>
+      <div class="field">
+        <label>Severity</label>
+        <select id="rule-severity">
+          <option value="CRITICAL">CRITICAL</option>
+          <option value="HIGH" selected>HIGH</option>
+          <option value="MEDIUM">MEDIUM</option>
+          <option value="LOW">LOW</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Description (optional)</label>
+        <textarea id="rule-description" rows="2" placeholder="What does this rule detect?"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeRuleModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+      <button class="btn btn-primary" onclick="saveRule()"><i class="fa-solid fa-save"></i> Save Rule</button>
+    </div>
+  </div>
+</div>
+
 <!-- -- Finding Details Modal -- -->
 <div class="modal-overlay" id="finding-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal">
@@ -1266,6 +1311,7 @@ function closeShortcutsModal() {
 function closeRuleEditor() {
   const card = document.getElementById('rule-editor-card');
   if (card) card.style.display = 'none';
+  closeRuleModal();
 }
 
 // Global keyboard listener for ? key
@@ -1607,6 +1653,9 @@ function renderTable() {
           </button>
           <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();dismissFinding(${globalI})">
             <i class="fa-solid fa-eye-slash"></i> Dismiss
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openFindingModal(${globalI})">
+            <i class="fa-solid fa-circle-info"></i> Details
           </button>
         </div>
       </td>
@@ -2301,7 +2350,7 @@ function loadDiff() {
   const tbody = document.getElementById('diff-body');
   tbody.innerHTML = diffRows.map(d => {
     const f = d.finding;
-    const fname = f.file ? f.file.replace(/\\\\/g, '/').split('/').slice(-2).join('/') : '';
+    const fname = f.file ? f.file.replace(/\\/g, '/').split('/').slice(-2).join('/') : '';
     return `
       <tr style="opacity:${d.status==='unchanged'?'0.5':'1'};">
         <td><span class="badge ${d.badge}">${d.label}</span></td>
@@ -2342,7 +2391,7 @@ let editingProjectId = null;
 
 async function loadProjects() {
   try {
-    const res = await fetch('/api/projects');
+    const res = await fetch('/projects');
     if (!res.ok) throw new Error('Failed to load projects');
     projects = await res.json();
     renderProjects();
@@ -2382,6 +2431,12 @@ function renderProjects() {
         </div>
       ` : '<p style="color:var(--muted);font-size:.82rem;">No repositories configured.</p>'}
       <div class="expand-actions" style="margin-top:.75rem;">
+        <button class="btn btn-primary btn-sm" onclick="scanAllProjectRepos('${p.id}')">
+          <i class="fa-solid fa-satellite-dish"></i> Scan All
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openProjectDashboard('${p.id}')">
+          <i class="fa-solid fa-chart-pie"></i> Dashboard
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="openProjectModal('${p.id}')">
           <i class="fa-solid fa-pen"></i> Edit
         </button>
@@ -2444,15 +2499,15 @@ function renderProjectRepoConfigFields(repos) {
       </div>
       <div class="field">
         <label>Name</label>
-        <input type="text" data-repo-idx="${i}" data-repo-field="name" value="${escHtml(r.name || '')}" placeholder="e.g. backend-api">
+        <input type="text" data-repo-idx="${i}" data-repo-field="name" value="${escHtml(r.name || '')}" oninput="updateProjectRepoFields()" placeholder="e.g. backend-api">
       </div>
       <div class="field">
         <label>URL or Path</label>
-        <input type="text" data-repo-idx="${i}" data-repo-field="url" value="${escHtml(r.url || '')}" placeholder="e.g. https://github.com/owner/repo.git or /local/path">
+        <input type="text" data-repo-idx="${i}" data-repo-field="url" value="${escHtml(r.url || '')}" oninput="updateProjectRepoFields()" placeholder="e.g. https://github.com/owner/repo.git or /local/path">
       </div>
       <div class="field">
         <label>Scan Type</label>
-        <select data-repo-idx="${i}" data-repo-field="scan_type">
+        <select data-repo-idx="${i}" data-repo-field="scan_type" onchange="updateProjectRepoFields()">
           <option value="path" ${(r.scan_type || 'path') === 'path' ? 'selected' : ''}>Directory / File</option>
           <option value="git" ${(r.scan_type || 'path') === 'git' ? 'selected' : ''}>Git History</option>
           <option value="url" ${(r.scan_type || 'path') === 'url' ? 'selected' : ''}>URL / Website</option>
@@ -2525,10 +2580,7 @@ async function scanAllProjectRepos(id) {
 }
 
 function editProject(id) {
-  fetch(`/projects/${id}`)
-    .then(res => res.json())
-    .then(project => openProjectModal(project))
-    .catch(() => toast('Failed to load project', 'error'));
+  openProjectModal(id);
 }
 
 async function deleteProject(id) {
@@ -2554,11 +2606,291 @@ async function openProjectDashboard(id) {
   }
 }
 
-// Load projects when navigating to projects page
+/* -----------------------------------------------
+   SCHEDULED SCANS
+----------------------------------------------- */
+let schedules = [];
+let editingScheduleId = null;
+
+async function loadSchedules() {
+  try {
+    const res = await fetch('/schedule');
+    if (!res.ok) throw new Error('Failed to load schedules');
+    schedules = await res.json();
+    renderSchedules();
+  } catch (e) {
+    toast('Failed to load schedules: ' + e.message, 'error');
+  }
+}
+
+function renderSchedules() {
+  const el = document.getElementById('schedules-list');
+  if (!schedules.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon"><i class="fa-solid fa-calendar-clock"></i></div>
+      <h3>No schedules yet</h3>
+      <p>Create a scheduled scan to automate recurring secret detection.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = schedules.map(s => `
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">
+        <i class="fa-solid fa-calendar-days"></i> ${escHtml(s.name)}
+        <span class="badge ${s.enabled ? 'badge-safe' : ''}" style="margin-left:.5rem;">${s.enabled ? 'Enabled' : 'Paused'}</span>
+        <span style="margin-left:auto;font-size:.75rem;color:var(--muted)"><code>${escHtml(s.cron_expression)}</code> · ${escHtml(s.scan_type)}</span>
+      </div>
+      <div style="font-size:.78rem;color:var(--muted);display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:.5rem;">
+        <span>Next run: <strong style="color:var(--txt)">${s.next_run ? escHtml(s.next_run) : '—'}</strong></span>
+        <span>Last run: ${s.last_run ? escHtml(s.last_run) : 'never'}</span>
+        <span>Runs: ${s.run_count}</span>
+      </div>
+      ${s.last_error ? `<p style="color:var(--crit);font-size:.78rem;margin-bottom:.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> Last error: ${escHtml(s.last_error)}</p>` : ''}
+      <div class="expand-actions">
+        <button class="btn btn-primary btn-sm" onclick="runScheduleNow('${s.id}')"><i class="fa-solid fa-play"></i> Run Now</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleSchedule('${s.id}')"><i class="fa-solid fa-${s.enabled ? 'pause' : 'play'}"></i> ${s.enabled ? 'Pause' : 'Resume'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="openScheduleModal('${s.id}')"><i class="fa-solid fa-pen"></i> Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}')"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+function openScheduleModal(id) {
+  const modal = document.getElementById('schedule-modal');
+  editingScheduleId = id || null;
+  const s = id ? schedules.find(x => x.id === id) : null;
+  document.getElementById('schedule-modal-title').innerHTML = s ? '<i class="fa-solid fa-pen"></i> Edit Schedule' : '<i class="fa-solid fa-plus"></i> Create Schedule';
+  document.getElementById('schedule-id').value = s ? s.id : '';
+  document.getElementById('schedule-name').value = s ? s.name : '';
+  document.getElementById('schedule-cron').value = s ? s.cron_expression : '';
+  document.getElementById('schedule-scan-type').value = s ? s.scan_type : 'path';
+  document.getElementById('schedule-webhook').value = s && s.webhook_url ? s.webhook_url : '';
+  document.getElementById('schedule-webhook-secret').value = '';
+  document.getElementById('schedule-enabled').checked = s ? s.enabled : true;
+  updateScheduleConfigFields(s ? s.scan_config : null);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function updateScheduleConfigFields(preset) {
+  const type = document.getElementById('schedule-scan-type').value;
+  const container = document.getElementById('schedule-config-fields');
+  preset = preset || {};
+  if (type === 'path') {
+    container.innerHTML = `
+      <div class="field">
+        <label>Path to Scan</label>
+        <input type="text" id="schedule-config-path" value="${escHtml(preset.path || '')}" placeholder="e.g. /path/to/repo">
+      </div>`;
+  } else if (type === 'git') {
+    container.innerHTML = `
+      <div class="field">
+        <label>Repository Path</label>
+        <input type="text" id="schedule-config-repo" value="${escHtml(preset.repo_path || '')}" placeholder="Path to the git repository">
+      </div>
+      <div class="field">
+        <label>Max Commits (optional)</label>
+        <input type="number" id="schedule-config-maxcommits" min="1" value="${preset.max_commits ?? ''}" placeholder="Leave empty to scan all commits">
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div class="field">
+        <label>URL to Scan</label>
+        <input type="url" id="schedule-config-url" value="${escHtml(preset.url || '')}" placeholder="https://example.com">
+      </div>`;
+  }
+}
+
+async function saveSchedule() {
+  const id = document.getElementById('schedule-id').value;
+  const name = document.getElementById('schedule-name').value.trim();
+  const cron = document.getElementById('schedule-cron').value.trim();
+  const scanType = document.getElementById('schedule-scan-type').value;
+  const webhook = document.getElementById('schedule-webhook').value.trim();
+  const webhookSecret = document.getElementById('schedule-webhook-secret').value.trim();
+  const enabled = document.getElementById('schedule-enabled').checked;
+
+  if (!name) { toast('Schedule name is required.', 'warn'); return; }
+  if (!cron) { toast('Cron expression is required.', 'warn'); return; }
+
+  const scanConfig = {};
+  if (scanType === 'path') {
+    scanConfig.path = document.getElementById('schedule-config-path')?.value.trim() || '.';
+  } else if (scanType === 'git') {
+    scanConfig.repo_path = document.getElementById('schedule-config-repo')?.value.trim() || '.';
+    const mc = document.getElementById('schedule-config-maxcommits')?.value;
+    if (mc) scanConfig.max_commits = parseInt(mc, 10);
+  } else {
+    scanConfig.url = document.getElementById('schedule-config-url')?.value.trim() || '';
+  }
+
+  const payload = {
+    name, cron_expression: cron, scan_type: scanType, scan_config: scanConfig,
+    webhook_url: webhook || null, webhook_secret: webhookSecret || null, enabled
+  };
+  const url = id ? `/schedule/${id}` : '/schedule';
+  const method = id ? 'PATCH' : 'POST';
+
+  const btn = document.querySelector('#schedule-modal .btn-primary');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Saving…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to save schedule');
+    }
+    toast(id ? 'Schedule updated' : 'Schedule created', 'success');
+    closeScheduleModal();
+    await loadSchedules();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+function closeScheduleModal() {
+  document.getElementById('schedule-modal').classList.remove('open');
+  document.body.style.overflow = '';
+  editingScheduleId = null;
+}
+
+async function runScheduleNow(id) {
+  try {
+    const res = await fetch(`/schedule/${id}/run`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Run failed');
+    const data = await res.json();
+    toast(`Scan triggered: ${data.findings_count} findings`, data.findings_count ? 'warn' : 'success');
+    await loadSchedules();
+  } catch (e) {
+    toast('Run failed: ' + e.message, 'error');
+  }
+}
+
+async function toggleSchedule(id) {
+  try {
+    const res = await fetch(`/schedule/${id}/toggle`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Toggle failed');
+    await loadSchedules();
+  } catch (e) {
+    toast('Toggle failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteSchedule(id) {
+  if (!confirm('Delete this schedule?')) return;
+  try {
+    const res = await fetch(`/schedule/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error((await res.json()).detail || 'Delete failed');
+    toast('Schedule deleted', 'success');
+    await loadSchedules();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+/* -----------------------------------------------
+   RULE EDITOR
+----------------------------------------------- */
+function openRuleModal() {
+  document.getElementById('rule-modal-title').innerHTML = '<i class="fa-solid fa-sliders"></i> Add Detection Rule';
+  document.getElementById('rule-id').value = '';
+  document.getElementById('rule-name').value = '';
+  document.getElementById('rule-pattern').value = '';
+  document.getElementById('rule-severity').value = 'HIGH';
+  document.getElementById('rule-description').value = '';
+  document.getElementById('rule-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeRuleModal() {
+  document.getElementById('rule-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function saveRule() {
+  const payload = {
+    id: document.getElementById('rule-id').value.trim(),
+    name: document.getElementById('rule-name').value.trim(),
+    pattern: document.getElementById('rule-pattern').value,
+    severity: document.getElementById('rule-severity').value,
+    description: document.getElementById('rule-description').value.trim(),
+  };
+  if (!payload.id || !payload.name || !payload.pattern) {
+    toast('ID, name and pattern are required.', 'warn');
+    return;
+  }
+  const btn = document.querySelector('#rule-modal .btn-primary');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Saving…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail = typeof err.detail === 'string' ? err.detail : (err.detail?.[0]?.msg || 'Failed to save rule');
+      throw new Error(detail);
+    }
+    toast(`Rule '${payload.id}' added`, 'success');
+    closeRuleModal();
+    _rulesLoaded = false;
+    await loadRules();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+/* -----------------------------------------------
+   FINDING DETAILS MODAL
+----------------------------------------------- */
+function openFindingModal(i) {
+  const f = filteredRows[i];
+  if (!f) return;
+  document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-info-circle"></i> Finding Details';
+  const rows = [
+    ['Rule', escHtml(f.rule_name || f.type)],
+    ['Type', `<code>${escHtml(f.type)}</code>`],
+    ['Severity', sevBadge(f.severity)],
+    ['Risk Score', scoreBar(f.score)],
+    ['File', escHtml(f.file || '')],
+    ['Location', `Line ${f.line}, Column ${f.col}`],
+    ['Masked Value', `<span class="code-chip">${escHtml(f.masked_value || '****')}</span>`],
+    ['Fingerprint', `<code>${escHtml(f.fingerprint || '')}</code>`],
+    ['Context', f.context ? `<code>${escHtml(f.context)}</code>` : '—'],
+  ];
+  if (f.commit_hash) {
+    rows.push(['Commit', `<code>${escHtml(String(f.commit_hash).slice(0, 12))}</code>`]);
+    if (f.commit_author) rows.push(['Author', escHtml(f.commit_author)]);
+    if (f.commit_date) rows.push(['Commit Date', escHtml(f.commit_date)]);
+    if (f.commit_message) rows.push(['Message', escHtml(f.commit_message)]);
+  }
+  document.getElementById('modal-body').innerHTML = rows.map(([k, v]) =>
+    `<div style="display:flex;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border);">
+       <div style="min-width:110px;color:var(--muted);font-size:.8rem;">${k}</div>
+       <div style="flex:1;font-size:.85rem;word-break:break-all;">${v}</div>
+     </div>`).join('');
+  document.getElementById('finding-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFindingModal() {
+  document.getElementById('finding-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Load extra page data when navigating
 const originalGoPage3 = goPage;
 goPage = function(id) {
   originalGoPage3(id);
   if (id === 'projects') loadProjects();
+  if (id === 'schedule') loadSchedules();
 };
 
 /* -----------------------------------------------

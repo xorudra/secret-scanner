@@ -102,6 +102,7 @@ class ScheduleResponse(BaseModel):
     updated_at: str
     last_run: str | None
     next_run: str | None
+    last_error: str | None = None
     run_count: int
 
 

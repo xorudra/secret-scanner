@@ -27,8 +27,13 @@
 - **Privacy-First Core Engine**: Uses Shannon entropy calculations (0–8 bits) and multi-pattern regex matching to detect leaked API keys, AWS credentials, private keys, database connection strings, and tokens without storing raw secret values.
 - **Modern Web Dashboard**: Served directly via FastAPI with an interactive dark-mode glassmorphic interface, summary cards, and JSON/CSV data export.
 - **Git History Scanner**: Scan your entire Git repository history across all commits from the dashboard.
+- **Scan History**: Every completed scan is saved (persisted in your browser) and can be restored into the Results view with one click.
+- **Scheduled Scans**: Automate recurring scans with cron expressions (path, git, or URL scans) and get notified via webhooks signed with HMAC-SHA256.
+- **Diff View (Scan Comparison)**: Compare any two scans from history to instantly see **new**, **resolved**, and **unchanged** findings using fingerprint-based matching.
+- **Team Projects**: Group multiple repositories into projects, run a *Scan All* across every configured repository, and view per-project dashboards with aggregated stats.
+- **Detection Rule Editor**: Browse all active rules and add your own regex rules directly from the dashboard (saved to `rules/default_rules.yaml`).
 - **Ignore Rules Support**: Skips binary files, build artifacts (`node_modules`, `.venv`), and custom rules defined in `.secretscannerignore`.
-- **HTML & Markdown Audit Reports**: Generate audit reports ready for compliance and security reviews — downloadable directly from the UI.
+- **HTML, Markdown, PDF & SARIF Audit Reports**: Generate audit reports ready for compliance and security reviews — downloadable directly from the UI.
 
 ## 🧩 How Scanning Works
 
@@ -48,6 +53,7 @@ Both signals are merged into a **risk score (0‑1)**; only tokens above a confi
 | `.secretscannerignore` | List of glob patterns (one per line) for files/folders the scanner should skip – e.g., `node_modules/`, `*.png`, `tests/**`. |
 | `rules/default_rules.yaml` | Built‑in detection rules (regex + entropy thresholds). |
 | **Custom rule file** | You can supply your own YAML with the same schema and point the dashboard to it via the “Custom Rules” field or the `--rules <file>` CLI flag. |
+| **Add Rule UI** | On the Detection Rules page, click **Add Rule** to append a new rule to `rules/default_rules.yaml` without editing YAML by hand. |
 
 **Example `.secretscannerignore`**  
 
@@ -100,15 +106,23 @@ This automatically:
 
 ## 🖥️ Using the Dashboard
 
-Once the server is running, the dashboard lets you:
+The sidebar gives you access to every page:
 
-| Feature | How |
-|---------|-----|
-| **Scan a folder** | Enter a directory path → click **Scan Path** |
-| **Scan text/snippet** | Paste code into the text area → click **Scan Text** |
-| **Scan Git history** | Enter a repo path → click **Scan Git History** |
-| **Export results** | Click **Download JSON** or **Download CSV** after a scan |
-| **Generate reports** | Click **HTML Report** or **Markdown Report** to download audit files |
+| Page | What you can do |
+|------|-----------------|
+| **Directory / File** | Enter a directory or file path → click **Scan Path** (or drag & drop a file / folder) |
+| **Text Snippet** | Paste code into the text area → click **Scan Text** |
+| **Git History** | Enter a repo path → click **Scan Git History** (checks every commit) |
+| **URL / Website** | Enter a URL → fetch and scan the response body |
+| **Results** | Sortable, filterable, paginated findings table with risk scores, finding details, fingerprint copy, and false-positive dismissal |
+| **Overview** | Aggregate stats, severity donut chart, and top affected files |
+| **Scan History** | Every completed scan is listed (persisted across reloads) — click one to restore it into Results, or clear history |
+| **Scheduled Scans** | Create cron-scheduled recurring scans (path / git / URL), attach optional HMAC-signed webhooks, run immediately, pause/resume, or delete |
+| **Scan Comparison** | Pick a baseline and a current scan from history → see **New / Resolved / Unchanged** findings side by side |
+| **Team Projects** | Create projects with multiple repositories (path, git, or URL targets), run **Scan All**, view a per-project dashboard, and delete projects |
+| **Detection Rules** | View every active rule with its regex and severity, or click **Add Rule** to create a new detection rule from the UI |
+| **Export results** | From Results: **Download JSON / CSV** |
+| **Generate reports** | From Results: **HTML / Markdown / PDF / SARIF** audit reports |
 
 ---
 
@@ -144,7 +158,11 @@ secret-scanner/
     │   └── scanner.py     ← Core scan engine (used by API)
     └── api/
         ├── __init__.py
-        └── app.py         ← FastAPI web app & REST endpoints
+        ├── app.py         ← FastAPI web app & REST endpoints
+        ├── scheduler.py   ← Cron scheduling + webhook alerts (/schedule)
+        ├── projects.py    ← Team Projects API (/projects)
+        └── templates/
+            └── index.html ← Dashboard UI (all pages)
 ```
 ## 🪝 Pre‑commit Hook (optional)
 
