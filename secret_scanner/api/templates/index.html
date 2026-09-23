@@ -510,14 +510,6 @@
     .h-meta  { font-size: .76rem; color: var(--muted); margin-top: .15rem; }
     .h-count { margin-left: auto; }
 
-    /* -- Keyboard hint -- */
-    .kbd {
-      display: inline-flex; align-items: center; gap: .2rem;
-      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
-      border-radius: 4px; padding: .1rem .4rem;
-      font-family: 'Fira Code', monospace; font-size: .7rem; color: var(--muted);
-    }
-
     /* -- Responsive -- */
     @media (max-width: 768px) {
       .layout { grid-template-columns: 1fr; }
@@ -532,13 +524,6 @@
       .stats-grid { grid-template-columns: repeat(2,1fr); }
       .main { padding: 1rem; }
     }
-    /* -- Shortcuts grid (modals) -- */
-    .shortcuts-grid { display: grid; grid-template-columns: 1fr; gap: .5rem; }
-    .shortcut-item { display: flex; align-items: center; gap: .75rem; padding: .5rem .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-    .shortcut-item kbd { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.15); min-width: 80px; text-align: center; }
-    .shortcut-item span { color: var(--txt); font-size: .85rem; }
-    [data-theme="light"] .shortcut-item { background: var(--surface); border-color: var(--border); }
-    [data-theme="light"] .shortcut-item kbd { background: rgba(0,0,0,0.05); border-color: var(--border); }
 
   </style>
 </head>
@@ -618,7 +603,7 @@
     <section class="page active" id="page-path">
       <div class="section-head">
         <h1><i class="fa-solid fa-folder-open" style="color:var(--indigo)"></i> Directory / File Scanner</h1>
-        <p>Recursively scans a local path using Shannon entropy analysis and YAML-configured regex rules. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+        <p>Recursively scans a local path using Shannon entropy analysis and YAML-configured regex rules.</p>
       </div>
 
       <div class="card">
@@ -626,8 +611,7 @@
         <div class="field">
           <label>Path to scan</label>
           <div class="input-row">
-            <input type="text" id="path-input" placeholder="e.g.  C:\Users\me\Desktop\my-project  or  ."
-                   onkeydown="if(event.ctrlKey&&event.key==='Enter')runPathScan()">
+            <input type="text" id="path-input" placeholder="e.g.  C:\Users\me\Desktop\my-project  or  .">
             <button class="btn btn-primary" id="btn-path" onclick="runPathScan()">
               <i class="fa-solid fa-magnifying-glass"></i> Scan
             </button>
@@ -663,7 +647,6 @@
           <li>Enter <code>.</code> to scan the current working directory.</li>
           <li>Results appear on the <strong>Results</strong> and <strong>Overview</strong> pages instantly.</li>
           <li>Use the <strong>Git History</strong> scanner to audit past commits too.</li>
-          <li>Hold <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to trigger a scan from any input field.</li>
           <li>Drag & drop a folder directly onto this page (Chrome/Edge 86+).</li>
         </ul>
       </div>
@@ -675,7 +658,7 @@
     <section class="page" id="page-text">
       <div class="section-head">
         <h1><i class="fa-solid fa-file-code" style="color:var(--cyan)"></i> Code Snippet Scanner</h1>
-        <p>Paste any raw code, config, logs, or environment files below for an instant leak check. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+        <p>Paste any raw code, config, logs, or environment files below for an instant leak check.</p>
       </div>
 
       <div class="card">
@@ -694,8 +677,7 @@
 
         <div class="field">
           <label>Or paste code manually</label>
-          <textarea id="text-snippet" placeholder="# Paste code or config here…&#10;AWS_ACCESS_KEY_ID=...&#10;DB_PASSWORD=..."
-                    onkeydown="if(event.ctrlKey&&event.key==='Enter')runTextScan()"></textarea>
+          <textarea id="text-snippet" placeholder="# Paste code or config here…&#10;AWS_ACCESS_KEY_ID=...&#10;DB_PASSWORD=..."></textarea>
         </div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -723,20 +705,18 @@
     <section class="page" id="page-git">
       <div class="section-head">
         <h1><i class="fa-brands fa-git-alt" style="color:#f97316"></i> Git History Scanner</h1>
-        <p>Traverses every commit blob with SHA deduplication. Supports local repos <em>and</em> remote GitHub / GitLab URLs. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+        <p>Traverses every commit blob with SHA deduplication. Supports local repos <em>and</em> remote GitHub / GitLab URLs.</p>
       </div>
 
       <div class="card">
         <div class="card-title"><i class="fa-solid fa-code-branch"></i> Repository Target</div>
         <div class="field">
           <label>Repository path or URL</label>
-          <input type="text" id="git-path" placeholder="e.g.  .  or  C:\repos\my-app  or  https://github.com/owner/repo.git"
-                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runGitScan()">
+          <input type="text" id="git-path" placeholder="e.g.  .  or  C:\repos\my-app  or  https://github.com/owner/repo.git">
         </div>
         <div class="field" style="max-width:240px;">
           <label>Max commits to scan <span style="color:var(--muted)">(leave blank = all)</span></label>
-          <input type="number" id="git-max-commits" placeholder="e.g. 200" min="1"
-                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runGitScan()">
+          <input type="number" id="git-max-commits" placeholder="e.g. 200" min="1">
         </div>
         <button class="btn btn-primary" id="btn-git" onclick="runGitScan()" style="margin-top:.25rem;">
           <i class="fa-brands fa-git-alt"></i> Scan Git History
@@ -761,7 +741,7 @@
     <section class="page" id="page-url">
       <div class="section-head">
         <h1><i class="fa-solid fa-globe" style="color:var(--cyan)"></i> URL / Website Scanner</h1>
-        <p>Fetch and scan any public website for exposed secrets in HTML, JavaScript, CSS, and API responses. <span class="kbd"><i class="fa-solid fa-keyboard" style="font-size:.6rem"></i> Ctrl+Enter</span> to scan.</p>
+        <p>Fetch and scan any public website for exposed secrets in HTML, JavaScript, CSS, and API responses.</p>
       </div>
 
       <div class="card">
@@ -769,8 +749,7 @@
         <div class="field">
           <label>Website URL</label>
           <div class="input-row">
-            <input type="text" id="url-input" placeholder="e.g.  https://example.com  or  https://api.example.com/v1/config"
-                   onkeydown="if(event.ctrlKey&&event.key==='Enter')runUrlScan()">
+            <input type="text" id="url-input" placeholder="e.g.  https://example.com  or  https://api.example.com/v1/config">
             <button class="btn btn-primary" id="btn-url" onclick="runUrlScan()">
               <i class="fa-solid fa-magnifying-glass"></i> Scan URL
             </button>
@@ -778,8 +757,7 @@
         </div>
         <div class="field" style="max-width:300px;">
           <label>Max response size (MB)</label>
-          <input type="number" id="url-max-size" value="5" min="1" max="50" step="1"
-                 onkeydown="if(event.ctrlKey&&event.key==='Enter')runUrlScan()">
+          <input type="number" id="url-max-size" value="5" min="1" max="50" step="1">
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.5rem;">
           <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--subtle);cursor:pointer;">
@@ -1224,30 +1202,6 @@
   </div>
 </div>
 
-<!-- -- Keyboard Shortcuts Modal -- -->
-<div class="modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
-  <div class="modal" style="max-width: 560px;">
-    <div class="modal-header">
-      <h3 id="shortcuts-title"><i class="fa-solid fa-keyboard"></i> Keyboard Shortcuts</h3>
-      <button class="modal-close" onclick="closeShortcutsModal()" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="shortcuts-grid">
-        <div class="shortcut-item"><kbd>?</kbd><span>Show this help</span></div>
-        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>Enter</kbd><span>Run scan (in input fields)</span></div>
-        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd><span>Toggle light/dark theme</span></div>
-        <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>K</kbd><span>Focus search (Results page)</span></div>
-        <div class="shortcut-item"><kbd>1</kbd>..<kbd>8</kbd><span>Navigate pages (not implemented)</span></div>
-        <div class="shortcut-item"><kbd>Esc</kbd><span>Close modals</span></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" onclick="closeShortcutsModal()"><i class="fa-solid fa-check"></i> Got it</button>
-    </div>
-  </div>
-</div>
-
-
 <script>
 /* -----------------------------------------------
    STATE
@@ -1296,38 +1250,18 @@ function updateThemeIcons(theme) {
 initTheme();
 
 /* -----------------------------------------------
-   KEYBOARD SHORTCUTS MODAL
+   MODAL HELPERS
 ----------------------------------------------- */
-function openShortcutsModal() {
-  document.getElementById('shortcuts-modal').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeShortcutsModal() {
-  document.getElementById('shortcuts-modal').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
 function closeRuleEditor() {
   const card = document.getElementById('rule-editor-card');
   if (card) card.style.display = 'none';
   closeRuleModal();
 }
 
-// Global keyboard listener for ? key
+// Close open modals on Escape
 document.addEventListener('keydown', (e) => {
-  // Ignore if typing in input/textarea
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-
-  if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-    e.preventDefault();
-    openShortcutsModal();
-  }
-
-  // Close modals on Escape
   if (e.key === 'Escape') {
     closeFindingModal();
-    closeShortcutsModal();
     closeRuleEditor();
   }
 });
@@ -2915,13 +2849,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Keyboard shortcut: Ctrl/Cmd+Enter to trigger scans
-  document.getElementById('text-snippet')?.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      runTextScan();
-    }
-  });
+  // Enter-to-scan on input fields
   document.getElementById('path-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -2932,13 +2860,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') {
       e.preventDefault();
       runGitScan();
-    }
-  });
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      goPage('results');
-      document.getElementById('search-input')?.focus();
     }
   });
 });
