@@ -303,7 +303,7 @@ def generate_sarif_report(findings: list[dict[str, Any]], target_path: str = "."
 def generate_pdf_report(findings: list[dict[str, Any]], target_path: str = ".") -> bytes:
     """Generate PDF audit report from findings using WeasyPrint."""
     try:
-        from weasyprint import HTML, CSS
+        from weasyprint import CSS, HTML
         from weasyprint.text.fonts import FontConfiguration
     except ImportError:
         raise RuntimeError(

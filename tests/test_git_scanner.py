@@ -30,7 +30,7 @@ class TestGitScanner(unittest.TestCase):
                 clean_file = repo_path / "readme.md"
                 clean_file.write_text("# Project Docs\nNothing secret here.\n", encoding="utf-8")
                 repo.index.add(["readme.md"])
-                commit_1 = repo.index.commit("Initial commit (clean)")
+                repo.index.commit("Initial commit (clean)")
 
                 # Commit 2: Leaked credential
                 secret_file = repo_path / "config.env"
@@ -97,10 +97,9 @@ class TestGitScanner(unittest.TestCase):
                 repo.close()
 
     def test_scan_invalid_and_nonexistent_repository(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError):
             # Not a git repo
-            with self.assertRaises(ValueError):
-                scan_repository(temp_dir)
+            scan_repository(temp_dir)
 
         # Nonexistent path
         with self.assertRaises(FileNotFoundError):

@@ -5,7 +5,7 @@ Team projects API with CRUD, member management, repository scanning, and dashboa
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -111,7 +111,7 @@ def _get_member(project_id: str, user_id: str) -> dict[str, Any] | None:
 async def create_project(req: ProjectCreateRequest):
     """Create a new team project."""
     project_id = uuid.uuid4().hex
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     project = {
         "id": project_id,
@@ -149,7 +149,7 @@ async def update_project(project_id: str, req: ProjectUpdateRequest):
     update_data = req.model_dump(exclude_unset=True)
 
     project.update(update_data)
-    project["updated_at"] = datetime.utcnow().isoformat()
+    project["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     return ProjectResponse(**project)
 
@@ -175,7 +175,7 @@ async def add_member(project_id: str, req: MemberAddRequest):
         "user_id": req.user_id,
         "email": req.email,
         "role": req.role,
-        "joined_at": datetime.utcnow().isoformat(),
+        "joined_at": datetime.now(timezone.utc).isoformat(),
     }
     _project_members.setdefault(project_id, []).append(member)
 
@@ -223,7 +223,7 @@ async def scan_project(project_id: str, req: ScanRequest):
                 findings = [f.to_dict() for f in raw]
 
         project["scan_count"] = project.get("scan_count", 0) + 1
-        project["updated_at"] = datetime.utcnow().isoformat()
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Scan failed: {e!s}")
 

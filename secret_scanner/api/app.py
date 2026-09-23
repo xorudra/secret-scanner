@@ -5,10 +5,8 @@ premium, feature-rich Web GUI dashboard.
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import pathlib
-import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -19,13 +17,11 @@ from secret_scanner.core.engine import DetectionEngine, scan_path
 from secret_scanner.core.reporter import (
     generate_html_report,
     generate_markdown_report,
-    generate_sarif_report,
     generate_pdf_report,
+    generate_sarif_report,
 )
 from secret_scanner.core.rules import load_rules
 from secret_scanner.git_scanner import scan_repository
-from secret_scanner.api.scheduler import router as scheduler_router
-from secret_scanner.api.projects import router as projects_router
 
 
 # --- WebSocket Progress Manager ----------------------------------------------
@@ -56,8 +52,8 @@ class ProgressManager:
         if scan_id in self.connections:
             try:
                 await self.connections[scan_id].send_json(data)
-            except Exception:
-                pass  # Connection closed
+            except Exception:  # noqa: BLE001, S110 - connection already closed, nothing to do
+                pass
     
     async def update_progress(self, scan_id: str, **kwargs):
         if scan_id in self.progress_data:
@@ -183,11 +179,12 @@ async def get_rules():
 
 
 @app.post("/rules")
-async def create_rule(req: RuleCreateRequest):
-    """Add a new detection rule to the rules file."""
+def create_rule(req: RuleCreateRequest):
+    """Add a new detection rule to the rules file (runs in a worker thread)."""
     import re
-    import yaml
     from pathlib import Path
+
+    import yaml
     
     # Validate regex
     try:
@@ -247,7 +244,7 @@ async def websocket_progress(websocket: WebSocket, scan_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         progress_manager.disconnect(scan_id)
-    except Exception:
+    except Exception:  # noqa: BLE001 - ensure disconnect cleanup on any error
         progress_manager.disconnect(scan_id)
 
 
@@ -423,7 +420,8 @@ async def export_pdf_report(req: ReportExportRequest):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {e!s}")
 
-    filename = f"secret_scanner_report_{req.target_path.replace('/', '_').replace('\\', '_')}.pdf"
+    safe_target = req.target_path.replace("/", "_").replace("\\", "_")
+    filename = f"secret_scanner_report_{safe_target}.pdf"
     return Response(
         content=pdf_content,
         media_type="application/pdf",
@@ -431,8 +429,16 @@ async def export_pdf_report(req: ReportExportRequest):
     )
 
 
+# Import routers here (not at the top) to avoid a circular import:
+# projects.py and scheduler.py do `from .app import scan_path`, which only
+# works once this module has fully defined scan_path and the app object.
+from secret_scanner.api.projects import router as projects_router
+from secret_scanner.api.scheduler import router as scheduler_router
+
 app.include_router(scheduler_router)
 app.include_router(projects_router)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
     """Serves the premium Web GUI dashboard (v2.1)."""

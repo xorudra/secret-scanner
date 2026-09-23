@@ -4,10 +4,9 @@ Scan scheduling with APScheduler and webhook notifications.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -20,7 +19,6 @@ from secret_scanner.core.engine import DetectionEngine
 from secret_scanner.git_scanner import scan_repository
 
 from .app import scan_path
-
 
 router = APIRouter(prefix="/schedule", tags=["scheduling"])
 
@@ -61,7 +59,7 @@ class ScheduleCreateRequest(BaseModel):
     def validate_cron(cls, v: str) -> str:
         try:
             CronTrigger.from_crontab(v)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pydantic converts this to a 422 validation error
             raise ValueError(f"Invalid cron expression: {e}")
         return v
 
@@ -87,7 +85,7 @@ class ScheduleUpdateRequest(BaseModel):
         if v is not None:
             try:
                 CronTrigger.from_crontab(v)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pydantic converts this to a 422 validation error
                 raise ValueError(f"Invalid cron expression: {e}")
         return v
 
@@ -141,7 +139,7 @@ async def run_scheduled_scan(schedule_id: str):
                     raw = engine.scan(resp.text, file_path=url)
                     findings = [f.to_dict() for f in raw]
 
-        schedule["last_run"] = datetime.utcnow().isoformat()
+        schedule["last_run"] = datetime.now(timezone.utc).isoformat()
         schedule["run_count"] = schedule.get("run_count", 0) + 1
 
         scheduler = get_scheduler()
@@ -152,7 +150,7 @@ async def run_scheduled_scan(schedule_id: str):
     except Exception as e:  # noqa: BLE001
         error = str(e)
         schedule["last_error"] = error
-        schedule["last_run"] = datetime.utcnow().isoformat()
+        schedule["last_run"] = datetime.now(timezone.utc).isoformat()
 
     if webhook_url:
         await send_webhook(webhook_url, webhook_secret, {
@@ -160,7 +158,7 @@ async def run_scheduled_scan(schedule_id: str):
             "schedule_name": schedule["name"],
             "scan_type": scan_type,
             "scan_id": scan_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "findings_count": len(findings),
             "error": error,
             "findings": findings[:10] if findings else [],
@@ -175,15 +173,15 @@ async def send_webhook(url: str, secret: str | None, payload: dict):
     body = json.dumps(payload)
 
     if secret:
-        import hmac
         import hashlib
+        import hmac
         signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
         headers["X-SecretScanner-Signature"] = f"sha256={signature}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             await client.post(url, content=body, headers=headers)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110 - best-effort webhook delivery
         pass
 
 
@@ -192,7 +190,7 @@ async def send_webhook(url: str, secret: str | None, payload: dict):
 async def create_schedule(req: ScheduleCreateRequest):
     """Create a new scheduled scan."""
     schedule_id = uuid.uuid4().hex
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     schedule = {
         "id": schedule_id,
@@ -260,7 +258,7 @@ async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
         await _add_job(schedule_id, update_data["cron_expression"])
 
     schedule.update(update_data)
-    schedule["updated_at"] = datetime.utcnow().isoformat()
+    schedule["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     return ScheduleResponse(**schedule)
 
@@ -283,7 +281,6 @@ async def run_schedule_now(schedule_id: str):
     if schedule_id not in _schedules:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
-    schedule = _schedules[schedule_id]
     findings = await run_scheduled_scan(schedule_id)
 
     return {
@@ -301,7 +298,7 @@ async def toggle_schedule(schedule_id: str):
 
     schedule = _schedules[schedule_id]
     schedule["enabled"] = not schedule["enabled"]
-    schedule["updated_at"] = datetime.utcnow().isoformat()
+    schedule["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if schedule["enabled"]:
         await _add_job(schedule_id, schedule["cron_expression"])

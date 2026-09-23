@@ -19,6 +19,7 @@ class TestCLI(unittest.TestCase):
                 [sys.executable, "-m", "secret_scanner.core.scanner", temp_dir, "--json"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(proc.returncode, 0)
             data = json.loads(proc.stdout)
@@ -34,6 +35,7 @@ class TestCLI(unittest.TestCase):
                 [sys.executable, "-m", "secret_scanner.core.scanner", temp_dir, "--ci"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             # Must exit with code 1 in CI mode when secret is present
             self.assertEqual(proc.returncode, 1)
@@ -47,6 +49,7 @@ class TestCLI(unittest.TestCase):
                 [sys.executable, "-m", "secret_scanner.core.scanner", temp_dir, "--ci"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             # Must exit with code 0 in CI mode when clean
             self.assertEqual(proc.returncode, 0)
@@ -72,6 +75,7 @@ class TestCLI(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(proc.returncode, 0)
             self.assertTrue(html_out.exists())
@@ -99,6 +103,7 @@ class TestCLI(unittest.TestCase):
                 [sys.executable, "-m", "secret_scanner.core.scanner", "--git", temp_dir, "--json"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(proc.returncode, 0)
             data = json.loads(proc.stdout)
@@ -112,6 +117,7 @@ class TestCLI(unittest.TestCase):
                 [sys.executable, "-m", "secret_scanner.core.scanner", "--git", temp_dir],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(proc.returncode, 1)
             self.assertIn("[ERROR] Git scan failed", proc.stderr)
