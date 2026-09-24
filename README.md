@@ -97,8 +97,19 @@ python -m secret_scanner
 ```
 
 This automatically:
-- Starts the server at **http://127.0.0.1:8000**
+- Starts the server at **http://127.0.0.1:8000** (if port 8000 is already taken by another app, the next free port is used and printed)
 - Opens the dashboard in your default browser
+
+Useful flags:
+
+```powershell
+python -m secret_scanner --port 8010     # always serve on a specific port
+python -m secret_scanner --no-browser     # do not open a browser window
+```
+
+> If you run other web apps on port 8000, launch SecretScanner with an explicit
+> port (e.g. `--port 8010`) and open that URL — otherwise the browser tab may
+> talk to the wrong application and show 404s for endpoints it does not own.
 
 > Browse to **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** for the interactive REST API documentation.
 
