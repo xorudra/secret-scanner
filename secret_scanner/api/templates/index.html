@@ -111,16 +111,8 @@
       font-size: .78rem; font-weight: 600;
       border: 1px solid;
     }
-    .pill-green  { background: rgba(34,197,94,.1);  border-color: rgba(34,197,94,.3);  color: var(--safe); }
     .pill-violet { background: rgba(168,85,247,.1); border-color: rgba(168,85,247,.3); color: var(--violet); cursor: pointer; transition: background .2s; }
     .pill-violet:hover { background: rgba(168,85,247,.2); }
-
-    .pulse {
-      width: 7px; height: 7px; border-radius: 50%; background: var(--safe);
-      box-shadow: 0 0 8px var(--safe);
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
 
     /* -- Layout -- */
     .layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 64px); }
@@ -581,7 +573,6 @@
     </a>
   </div>
   <div class="nav-right">
-    <span class="pill pill-green"><span class="pulse"></span> Engine Online</span>
     <a href="/docs" target="_blank" class="pill pill-violet"><i class="fa-solid fa-code"></i> API Docs</a>
   </div>
 </nav>
