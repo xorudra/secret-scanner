@@ -255,8 +255,23 @@ async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
     schedule = _schedules[schedule_id]
     update_data = req.model_dump(exclude_unset=True)
 
+    new_enabled = update_data.get("enabled", schedule["enabled"])
+    new_cron = update_data.get("cron_expression", schedule["cron_expression"])
+
     if "cron_expression" in update_data and update_data["cron_expression"] != schedule["cron_expression"]:
-        await _add_job(schedule_id, update_data["cron_expression"])
+        if new_enabled:
+            await _add_job(schedule_id, new_cron)
+
+    if "enabled" in update_data and update_data["enabled"] != schedule["enabled"]:
+        if update_data["enabled"]:
+            await _add_job(schedule_id, new_cron)
+        else:
+            scheduler = get_scheduler()
+            try:
+                scheduler.remove_job(schedule_id)
+            except Exception:
+                pass
+            schedule["next_run"] = None
 
     schedule.update(update_data)
     schedule["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -271,7 +286,10 @@ async def delete_schedule(schedule_id: str):
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     scheduler = get_scheduler()
-    scheduler.remove_job(schedule_id)
+    try:
+        scheduler.remove_job(schedule_id)
+    except Exception:
+        pass
 
     del _schedules[schedule_id]
 
@@ -305,7 +323,10 @@ async def toggle_schedule(schedule_id: str):
         await _add_job(schedule_id, schedule["cron_expression"])
     else:
         scheduler = get_scheduler()
-        scheduler.remove_job(schedule_id)
+        try:
+            scheduler.remove_job(schedule_id)
+        except Exception:
+            pass
         schedule["next_run"] = None
 
     return ScheduleResponse(**schedule)

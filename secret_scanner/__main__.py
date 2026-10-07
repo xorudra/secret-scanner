@@ -51,23 +51,112 @@ def _open_browser(url: str) -> None:
 
 
 def main() -> None:
-    """Launch the web GUI (used as the script entry point and __main__)."""
+    """Unified entry point: launch Web GUI or run CLI scanner based on arguments."""
     import argparse
+    import sys
+
+    from secret_scanner.core.scanner import main as run_cli
+
+    # Check if any CLI scanning flags or positional targets were passed
+    cli_action_flags = {
+        "--git", "--ci", "--fail-on-findings", "--rules", "--json",
+        "--html", "--markdown", "--sarif", "--install-hook", "--uninstall-hook",
+        "--max-commits",
+    }
+    argv = sys.argv[1:]
+    has_cli_action = any(
+        arg in cli_action_flags or any(arg.startswith(f"{f}=") for f in cli_action_flags)
+        for arg in argv
+    )
+    has_gui_flag = any(arg in ("--port", "--no-browser") or arg.startswith("--port=") for arg in argv)
+    positional_args = [a for a in argv if not a.startswith("-")]
+
+    # If CLI action flag is passed, or if positional target is passed without GUI flags, run CLI
+    if has_cli_action or (positional_args and not has_gui_flag and "-h" not in argv and "--help" not in argv):
+        run_cli()
+        return
 
     parser = argparse.ArgumentParser(
-        prog="secret_scanner",
-        description="Launch the SecretScanner web dashboard.",
+        prog="secret-scanner",
+        description="Privacy-First Credential Leak Detection Platform & CLI Scanner.\n"
+                    "Run with no arguments to launch the web dashboard, or pass CLI options to scan directly.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
+    gui_group = parser.add_argument_group("Web GUI options")
+    gui_group.add_argument(
         "--port", type=int, default=None,
         help="Port to serve on (default: 8000, or the next free port if 8000 is busy)",
     )
-    parser.add_argument(
+    gui_group.add_argument(
         "--no-browser", action="store_true",
         help="Do not open the browser automatically",
     )
+
+    cli_group = parser.add_argument_group("CLI Scanner options")
+    cli_group.add_argument(
+        "target", nargs="?", default=None,
+        help="Directory or file path to scan",
+    )
+    cli_group.add_argument(
+        "--git", nargs="?", const=".", metavar="REPO",
+        help="Scan Git repository commit history",
+    )
+    cli_group.add_argument(
+        "--max-commits", type=int, default=None, metavar="N",
+        help="Maximum historical Git commits to scan",
+    )
+    cli_group.add_argument(
+        "--rules", metavar="FILE",
+        help="Path to custom YAML detection rules file",
+    )
+    cli_group.add_argument(
+        "--json", action="store_true",
+        help="Output raw scan findings formatted as JSON to stdout",
+    )
+    cli_group.add_argument(
+        "--html", metavar="FILE",
+        help="Write an HTML security audit report to target file",
+    )
+    cli_group.add_argument(
+        "--markdown", metavar="FILE",
+        help="Write a Markdown security audit report to target file",
+    )
+    cli_group.add_argument(
+        "--sarif", metavar="FILE",
+        help="Write an OASIS SARIF v2.1.0 report for CI/CD and GitHub Security",
+    )
+    cli_group.add_argument(
+        "--ci", "--fail-on-findings", dest="ci_mode", action="store_true",
+        help="Exit with return code 1 if any secrets are detected (for CI/CD)",
+    )
+    cli_group.add_argument(
+        "--install-hook", action="store_true",
+        help="Install Git pre-commit hook into target repository",
+    )
+    cli_group.add_argument(
+        "--uninstall-hook", action="store_true",
+        help="Uninstall Git pre-commit hook from target repository",
+    )
+
     args = parser.parse_args()
 
+    # If any CLI options were parsed, forward to CLI runner
+    if (
+        args.target is not None
+        or args.git is not None
+        or args.ci_mode
+        or args.json
+        or args.html
+        or args.markdown
+        or args.sarif
+        or args.rules
+        or args.install_hook
+        or args.uninstall_hook
+    ):
+        run_cli()
+        return
+
+    # Otherwise launch Web GUI
     if args.port is not None:
         port = args.port
         if not _port_is_free(port):

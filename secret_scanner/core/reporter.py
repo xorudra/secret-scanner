@@ -131,9 +131,14 @@ def _get_severity_badge(severity: str) -> str:
     return f'<span class="badge {badge_cls}">{html.escape(s)}</span>'
 
 
-def generate_html_report(findings: list[dict[str, Any]], target_path: str = ".") -> str:
+def generate_html_report(
+    findings: list[dict[str, Any]],
+    target_path: str = ".",
+    generated_at: datetime.datetime | None = None,
+) -> str:
     """Generate a responsive HTML security audit report string."""
-    now_str = NOW.strftime("%Y-%m-%d %H:%M:%S")
+    now = generated_at or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
 
     critical_count = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
     high_count = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
@@ -178,9 +183,14 @@ def generate_html_report(findings: list[dict[str, Any]], target_path: str = ".")
     return report
 
 
-def generate_markdown_report(findings: list[dict[str, Any]], target_path: str = ".") -> str:
+def generate_markdown_report(
+    findings: list[dict[str, Any]],
+    target_path: str = ".",
+    generated_at: datetime.datetime | None = None,
+) -> str:
     """Generate Markdown format security audit report string."""
-    now_str = NOW.strftime("%Y-%m-%d %H:%M:%S")
+    now = generated_at or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
 
     critical_count = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
     high_count = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
@@ -288,7 +298,7 @@ def generate_sarif_report(findings: list[dict[str, Any]], target_path: str = "."
                 "tool": {
                     "driver": {
                         "name": "SecretScanner",
-                        "semanticVersion": "0.1.0",
+                        "semanticVersion": "2.2.0",
                         "informationUri": "https://github.com/secret-scanner/secret-scanner",
                         "rules": list(rules_dict.values()),
                     }

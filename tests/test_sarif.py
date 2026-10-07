@@ -46,6 +46,7 @@ class TestSarifReporter(unittest.TestCase):
 
         run = sarif["runs"][0]
         self.assertEqual(run["tool"]["driver"]["name"], "SecretScanner")
+        self.assertEqual(run["tool"]["driver"]["semanticVersion"], "2.2.0")
         self.assertEqual(len(run["results"]), 2)
 
         # Check result 1

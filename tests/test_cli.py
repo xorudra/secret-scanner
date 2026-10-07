@@ -122,6 +122,51 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
             self.assertIn("[ERROR] Git scan failed", proc.stderr)
 
+    def test_cli_hook_install_and_uninstall(self):
+        import git
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir)
+            repo = git.Repo.init(str(repo_path))
+            repo.close()
+
+            # Install hook via python -m secret_scanner
+            proc_inst = subprocess.run(
+                [sys.executable, "-m", "secret_scanner", str(temp_dir), "--install-hook"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc_inst.returncode, 0)
+            hook_file = repo_path / ".git" / "hooks" / "pre-commit"
+            self.assertTrue(hook_file.exists())
+            self.assertIn("SecretScanner", hook_file.read_text(encoding="utf-8"))
+
+            # Uninstall hook via python -m secret_scanner
+            proc_uninst = subprocess.run(
+                [sys.executable, "-m", "secret_scanner", str(temp_dir), "--uninstall-hook"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc_uninst.returncode, 0)
+            self.assertFalse(hook_file.exists())
+
+    def test_main_module_delegates_to_cli_scan(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            f = Path(temp_dir) / "test.env"
+            f.write_text("AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n", encoding="utf-8")
+
+            proc = subprocess.run(
+                [sys.executable, "-m", "secret_scanner", temp_dir, "--json"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0)
+            data = json.loads(proc.stdout)
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["type"], "aws_access_key")
+
 
 if __name__ == "__main__":
     unittest.main()

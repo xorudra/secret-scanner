@@ -160,9 +160,10 @@ class ReportExportRequest(BaseModel):
 # API Routes
 # ---------------------------------------------------------------------------
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     """Health-check endpoint."""
-    return {"status": "ok", "service": "secret-scanner", "version": "2.1.0"}
+    return {"status": "ok", "service": "secret-scanner", "version": "2.2.0"}
 
 
 @app.get("/rules")

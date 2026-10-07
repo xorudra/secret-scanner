@@ -112,6 +112,33 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(updated.name, "renamed")
         asyncio.run(delete_schedule(created.id))
 
+    def test_delete_disabled_schedule_no_error(self):
+        # When schedule is disabled, no job exists in scheduler
+        created = asyncio.run(create_schedule(self._make_request(enabled=False)))
+        self.assertFalse(created.enabled)
+        # Should delete cleanly without JobLookupError
+        asyncio.run(delete_schedule(created.id))
+        with self.assertRaises(HTTPException):
+            asyncio.run(get_schedule(created.id))
+
+    def test_update_schedule_enabled(self):
+        from secret_scanner.api.scheduler import ScheduleUpdateRequest
+        created = asyncio.run(create_schedule(self._make_request(enabled=True)))
+        self.assertIn(created.id, self.stub.jobs)
+
+        # Disable via update
+        upd = ScheduleUpdateRequest(enabled=False)
+        updated = asyncio.run(update_schedule(created.id, upd))
+        self.assertFalse(updated.enabled)
+        self.assertNotIn(created.id, self.stub.jobs)
+
+        # Re-enable via update
+        upd2 = ScheduleUpdateRequest(enabled=True)
+        updated2 = asyncio.run(update_schedule(created.id, upd2))
+        self.assertTrue(updated2.enabled)
+        self.assertIn(created.id, self.stub.jobs)
+        asyncio.run(delete_schedule(created.id))
+
     def test_run_schedule_now_executes_scan(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             secret_file = Path(temp_dir) / "config.env"

@@ -41,7 +41,7 @@ if sys.platform == "win32":
         pass
 
 from secret_scanner.core.engine import DetectionEngine, scan_path
-from secret_scanner.core.hook import install_pre_commit_hook
+from secret_scanner.core.hook import install_pre_commit_hook, uninstall_pre_commit_hook
 from secret_scanner.core.reporter import (
     generate_html_report,
     generate_markdown_report,
@@ -148,13 +148,23 @@ def main() -> None:
         action="store_true",
         help="Install Git pre-commit hook into target repository.",
     )
+    parser.add_argument(
+        "--uninstall-hook",
+        action="store_true",
+        help="Uninstall Git pre-commit hook from target repository.",
+    )
 
     args = parser.parse_args()
 
-    # Pre-commit hook installation
+    # Pre-commit hook installation/uninstallation
     if args.install_hook:
         repo_dir = pathlib.Path(args.target).resolve()
         success = install_pre_commit_hook(repo_dir)
+        sys.exit(0 if success else 1)
+
+    if args.uninstall_hook:
+        repo_dir = pathlib.Path(args.target).resolve()
+        success = uninstall_pre_commit_hook(repo_dir)
         sys.exit(0 if success else 1)
 
     # Initialize detection engine with custom rules if provided

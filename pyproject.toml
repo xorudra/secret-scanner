@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secret_scanner"
-version = "0.1.0"
+version = "2.2.0"
 description = "Privacy-first secret and credential leak detection utility"
 requires-python = ">=3.10"
 authors = [{name = "Rudra Singh"}]
@@ -15,6 +15,8 @@ dependencies = [
     "pyyaml>=6.0",
     "weasyprint>=60.0",
     "apscheduler>=3.10",
+    "pydantic>=2.0.0",
+    "httpx>=0.24.0",
 ]
 
 [tool.setuptools.packages.find]

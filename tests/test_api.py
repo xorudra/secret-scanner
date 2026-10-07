@@ -26,6 +26,7 @@ class TestAPI(unittest.TestCase):
         res = asyncio.run(health())
         self.assertEqual(res["status"], "ok")
         self.assertEqual(res["service"], "secret-scanner")
+        self.assertEqual(res["version"], "2.2.0")
 
     def test_rules_endpoint(self):
         res = asyncio.run(get_rules())

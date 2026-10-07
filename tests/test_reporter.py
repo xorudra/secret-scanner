@@ -35,6 +35,16 @@ class TestReporterAndIgnore(unittest.TestCase):
         self.assertIn("SecretScanner Security Audit Report", md_out)
         self.assertIn("aws_secret_key", md_out)
 
+    def test_report_custom_generated_at(self):
+        import datetime
+        findings = []
+        dt = datetime.datetime(2026, 12, 31, 23, 59, 59)
+        html_out = generate_html_report(findings, generated_at=dt)
+        self.assertIn("2026-12-31 23:59:59 UTC", html_out)
+
+        md_out = generate_markdown_report(findings, generated_at=dt)
+        self.assertIn("2026-12-31 23:59:59 UTC", md_out)
+
     def test_markdown_report_low_severity(self):
         findings = [{
             "type": "custom_rule",

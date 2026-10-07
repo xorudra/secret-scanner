@@ -5,3 +5,4 @@ gitpython>=3.1.0
 apscheduler>=3.10
 weasyprint>=60.0
 pydantic>=2.0.0
+httpx>=0.24.0

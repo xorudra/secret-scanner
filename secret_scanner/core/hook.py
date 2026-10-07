@@ -158,11 +158,37 @@ def install_pre_commit_hook(repo_path: pathlib.Path | None = None) -> bool:
         print(f"[ERROR] Failed to install pre-commit hook: {e}", file=sys.stderr)
         return False
 
+def uninstall_pre_commit_hook(repo_path: pathlib.Path | None = None) -> bool:
+    """Uninstall the SecretScanner pre-commit hook from the target repository."""
+    target_repo = (repo_path or pathlib.Path(".")).resolve()
+    hook_file = target_repo / ".git" / "hooks" / "pre-commit"
+
+    if not hook_file.exists():
+        print(f"No pre-commit hook found at: {hook_file}")
+        return True
+
+    try:
+        content = hook_file.read_text(encoding="utf-8", errors="ignore")
+        if "SecretScanner" in content:
+            hook_file.unlink()
+            print(f"Git pre-commit hook successfully removed from: {hook_file}")
+            return True
+        print(
+            f"[WARNING] Existing pre-commit hook was not created by SecretScanner; not removing: {hook_file}",
+            file=sys.stderr,
+        )
+        return False
+    except OSError as e:
+        print(f"[ERROR] Failed to uninstall pre-commit hook: {e}", file=sys.stderr)
+        return False
+
 
 if __name__ == "__main__":
     if "--check" in sys.argv:
         sys.exit(run_pre_commit_check())
     elif "--install" in sys.argv:
         sys.exit(0 if install_pre_commit_hook() else 1)
+    elif "--uninstall" in sys.argv:
+        sys.exit(0 if uninstall_pre_commit_hook() else 1)
     else:
         sys.exit(run_pre_commit_check())
