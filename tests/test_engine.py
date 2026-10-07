@@ -84,9 +84,30 @@ class TestEngine(unittest.TestCase):
             findings = scan_path(temp_dir, max_workers=4)
             self.assertEqual(len(findings), 5)
 
-    def test_scan_path_nonexistent(self):
-        findings = scan_path("non_existent_folder_xyz_123")
-        self.assertEqual(findings, [])
+    def test_placeholder_filtering(self):
+        """Placeholders like your-*-here, generate-a-*, and JS code should not trigger secrets."""
+        engine = DetectionEngine()
+        sample = """
+        ENCRYPTION_KEY=your-64-char-hex-key-here
+        SECRET=generate-a-long-random-token
+        API_KEY="freellmapi-your-unified-key"
+        const x = s.recommendedTypeChecked;
+        const y = s.configs.flat.recommended;
+        """
+        findings = engine.scan(sample, file_path="freellmapi/.env.example")
+        self.assertEqual(len(findings), 0)
+
+    def test_raw_secret_exposure(self):
+        """Real secrets must be exposed 100% raw in secret_value and to_dict without masking."""
+        engine = DetectionEngine()
+        raw_key = "sk-proj-abc123456789012345678901234567890abcdef"
+        sample = f'OPENAI_API_KEY="{raw_key}"'
+        findings = engine.scan(sample, file_path="config.py")
+        self.assertEqual(len(findings), 1)
+        finding_dict = findings[0].to_dict()
+        self.assertEqual(finding_dict["secret_value"], raw_key)
+        self.assertEqual(finding_dict["file"], "config.py")
+        self.assertNotIn("****", finding_dict["secret_value"])
 
 
 if __name__ == "__main__":

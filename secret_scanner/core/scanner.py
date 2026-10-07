@@ -69,16 +69,18 @@ def format_terminal_findings(findings: list[dict[str, Any]]) -> None:
     for idx, f in enumerate(findings, start=1):
         sev = f.get("severity", "MEDIUM").upper()
         rule_name = f.get("rule_name") or f.get("type", "Secret")
-        loc = f"{f.get('file', '<unknown>')}:{f.get('line', 1)}:{f.get('col', 1)}"
-        masked = f.get("masked_value", "****")
+        file_path = f.get("file", "<unknown>")
+        loc = f"{file_path}:{f.get('line', 1)}:{f.get('col', 1)}"
+        secret_val = f.get("secret_value", f.get("masked_value", "****"))
         score = f.get("score", 0.0)
 
         print(f"[{idx}] [{sev}] {rule_name} (Risk Score: {score})")
+        print(f"    File:     {file_path}")
         print(f"    Location: {loc}")
-        print(f"    Masked:   {masked}")
+        print(f"    Secret:   {secret_val}")
         if "commit_hash" in f:
             print(f"    Git:      Commit {f['commit_hash']} by {f.get('commit_author', 'unknown')}")
-        if "context" in f and f["context"] != masked:
+        if "context" in f:
             print(f"    Context:  {f['context']}")
         print("-" * 70)
 

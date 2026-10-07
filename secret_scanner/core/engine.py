@@ -31,8 +31,74 @@ TYPE_ANNOTATIONS = {
 
 # Regex IDs that require an entropy check (generic patterns produce many FPs)
 _ENTROPY_CHECKED_RULES = frozenset({
-    "generic_api_key", "generic_secret", "password_assignment",
+    "generic_api_key",
+    "generic_secret",
+    "password_assignment",
+    "env_secret_assignment",
+    "encryption_key",
+    "high_entropy_hex_token",
+    "bearer_token",
+    "webhook_secret",
+    "oauth_client_secret",
+    "connection_string_generic",
 })
+
+# Substrings indicating intentional placeholders, documentation samples, or instructions rather than real secrets
+_PLACEHOLDER_SUBSTRINGS = (
+    "your-", "your_", "<your", "your key", "your-key", "your_key",
+    "your-token", "your_token", "your-secret", "your_secret", "your-unified",
+    "your-api", "your_api", "insert-", "insert_", "<insert", "replace-",
+    "replace_", "placeholder", "changeme", "change_me", "change-me",
+    "example-", "example_", "sample-", "sample_", "dummy-", "dummy_",
+    "fake-", "fake_", "mock-", "mock_", "generate-a-", "generate_a_",
+    "-here", "_here", "to-be-set", "todo-", "my-secret", "my_secret",
+)
+
+_COMMON_DUMMY_VALUES = frozenset({
+    "12345678", "123456789", "1234567890", "password", "password123",
+    "admin123", "secret123", "qwertyuiop", "letmein123",
+})
+
+
+def _is_placeholder_secret(value: str, line: str = "", file_path: str = "") -> bool:
+    """Filter out obvious example/template placeholders and dummy tokens:
+    e.g. `your-64-char-hex-key-here`, `generate-a-long-random-token`, `freellmapi-your-unified-key`.
+    This prevents example documentation and template files from being falsely flagged
+    as leaked credentials.
+    """
+    clean = value.strip("'\" \t\r\n")
+    if len(clean) < 6:
+        return True
+
+    # Exact trivial / demo credentials
+    if clean.lower() in _COMMON_DUMMY_VALUES:
+        return True
+
+    # Template parameter expressions: <your-key>, ${VAR}, {{VAR}}, %VAR%
+    if (clean.startswith("<") and clean.endswith(">")) or \
+       (clean.startswith("${") and clean.endswith("}")) or \
+       (clean.startswith("{{") and clean.endswith("}}")) or \
+       (clean.startswith("%") and clean.endswith("%")):
+        return True
+
+    # Low character diversity (e.g. 0000000000000000, xxxxxxxxxxxxxxxxxx)
+    if len(set(clean)) <= 2:
+        return True
+
+    low = clean.lower()
+    for sub in _PLACEHOLDER_SUBSTRINGS:
+        if sub in low:
+            return True
+
+    # Check if inside an example/sample template file (e.g. .env.example, sample.env)
+    p_lower = file_path.lower()
+    if any(ext in p_lower for ext in (".example", ".sample", ".template")):
+        if low.count("-") >= 2 or low.count("_") >= 2:
+            words = [w for w in re.split(r"[-_]", low) if w.isalpha()]
+            if len(words) >= 3:
+                return True
+
+    return False
 
 # Maximum number of worker threads for parallel file scanning
 _MAX_WORKERS = min(8, (os.cpu_count() or 1) + 2)
@@ -135,7 +201,8 @@ class SecretFinding:
         self.commit_info = commit_info or {}
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize finding to a dictionary without exposing raw secrets."""
+        """Serialize finding to a dictionary — exposes raw secret value and file path
+        so users can identify exactly which credential was leaked and where."""
         data: dict[str, Any] = {
             "type": self.secret_type,
             "rule_name": self.rule_name,
@@ -145,6 +212,7 @@ class SecretFinding:
             "col": self.col,
             "score": round(self.score, 3),
             "fingerprint": self.fingerprint,
+            "secret_value": self.value,
             "masked_value": self.masked_value,
             "context": self.context,
         }
@@ -209,18 +277,12 @@ class DetectionEngine:
         base = base_weights.get(severity.upper(), 0.50)
         return min(1.0, base + (1.0 - base) * 0.6 * normalized_entropy)
 
-    def _mask_context(self, line: str, raw_match: str, secret_value: str) -> str:
-        """Mask the secret value within the original line context snippet."""
+    def _raw_context(self, line: str) -> str:
+        """Return the raw source line as context — no masking, so users can see
+        exactly what leaked and in which file/line."""
         clean_line = line.strip()
-        if len(clean_line) > 160:
-            clean_line = clean_line[:160] + "..."
-        masked = mask_secret(secret_value)
-        # Use regex-safe replacement to correctly handle special chars in secret
-        try:
-            clean_line = re.sub(re.escape(secret_value), masked, clean_line, count=1)
-        except re.error:
-            # Fallback: plain string replace if re.escape has edge-case issues
-            clean_line = clean_line.replace(secret_value, masked, 1)
+        if len(clean_line) > 200:
+            clean_line = clean_line[:200] + "..."
         return clean_line
 
     def scan(
@@ -233,42 +295,55 @@ class DetectionEngine:
         findings: list[SecretFinding] = []
         seen_fingerprints: set[str] = set()
 
-        for line_num, line in enumerate(text.splitlines(), start=1):
-            # Skip comment-only or extremely long single-line generated assets (e.g. bundle maps)
+        lines = text.splitlines()
+        for line_num, line in enumerate(lines, start=1):
+            # Skip extremely long single-line generated assets (e.g. bundle maps)
             if len(line) > 2000:
+                continue
+
+            # Fast skip: blank lines
+            stripped = line.lstrip()
+            if not stripped:
                 continue
 
             for rule in self.rules:
                 for match in rule.pattern.finditer(line):
-                    secret_val = rule.extract_secret(match)
-                    if not secret_val or len(secret_val) < 6:
+                    candidate_val = rule.extract_secret(match)
+                    if not candidate_val:
+                        continue
+                    candidate_val = candidate_val.strip("'\" \t\r\n")
+                    if len(candidate_val) < 6:
+                        continue
+
+                    # Filter out example placeholders and dummy tokens
+                    if _is_placeholder_secret(candidate_val, line, file_path):
                         continue
 
                     # Filter out type annotation false positives
-                    if self._is_false_positive_annotation(line, match.group(0), secret_val):
+                    if self._is_false_positive_annotation(line, match.group(0), candidate_val):
                         continue
 
                     # Entropy check for generic keys and passwords
                     if rule.rule_id in _ENTROPY_CHECKED_RULES:
-                        entropy = _cached_shannon_entropy(secret_val)
+                        entropy = _cached_shannon_entropy(candidate_val)
                         if entropy < self.entropy_threshold:
                             continue
 
-                    fp = fingerprint(secret_val)
+                    fp = fingerprint(candidate_val)
                     # Deduplicate multiple hits of the same secret on the same file/line
                     dedup_key = f"{file_path}:{line_num}:{fp}"
                     if dedup_key in seen_fingerprints:
                         continue
                     seen_fingerprints.add(dedup_key)
 
-                    score = self._score(secret_val, rule.severity)
+                    score = self._score(candidate_val, rule.severity)
                     col = match.start() + 1
-                    context = self._mask_context(line, match.group(0), secret_val)
+                    context = self._raw_context(line)
 
                     findings.append(
                         SecretFinding(
                             secret_type=rule.rule_id,
-                            value=secret_val,
+                            value=candidate_val,
                             file_path=file_path,
                             line=line_num,
                             col=col,
@@ -304,6 +379,13 @@ def scan_file(path: str, engine: DetectionEngine | None = None) -> list[dict[str
             return []
 
         # Read raw bytes to check for binary data
+        # Use mmap for large files to avoid high memory overhead
+        file_size = p.stat().st_size
+        if file_size == 0:
+            return []
+        if file_size > 10 * 1024 * 1024:  # Skip files > 10 MB
+            return []
+
         with open(p, "rb") as fh:
             chunk = fh.read(8192)
             if is_binary_content(chunk):

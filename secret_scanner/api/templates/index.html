@@ -859,7 +859,7 @@
               <th onclick="sortBy('rule_name')"  id="th-rule_name">Rule<span class="sort-icon">?</span></th>
               <th>File</th>
               <th onclick="sortBy('line')"       id="th-line">Line<span class="sort-icon">?</span></th>
-              <th>Masked Secret</th>
+              <th>Exposed Secret</th>
               <th onclick="sortBy('score')"      id="th-score">Score<span class="sort-icon">?</span></th>
             </tr>
           </thead>
@@ -1077,7 +1077,7 @@
                 <th>Rule</th>
                 <th>File</th>
                 <th>Line</th>
-                <th>Masked Value</th>
+                <th>Exposed Value</th>
               </tr>
             </thead>
             <tbody id="diff-body"></tbody>
@@ -1508,7 +1508,7 @@ function applyFilters() {
     if (dismissedFPs.has(f.fingerprint)) return false;
     const matchSev  = !sev  || (f.severity||'').toUpperCase() === sev;
     const matchType = !type || (f.rule_name||f.type||'').toLowerCase() === type;
-    const matchText = !q    || [f.file, f.rule_name, f.type, f.masked_value, f.context].join(' ').toLowerCase().includes(q);
+    const matchText = !q    || [f.file, f.rule_name, f.type, f.secret_value, f.masked_value, f.context].join(' ').toLowerCase().includes(q);
     return matchSev && matchType && matchText;
   });
   if (sortKey) doSort(sortKey, false);
@@ -1606,17 +1606,21 @@ function renderTable() {
         <span class="file-chip" title="${escHtml(f.file)}">${escHtml(fname)}</span>${commit}
       </td>
       <td style="font-variant-numeric:tabular-nums;color:var(--subtle)">L${f.line} : C${f.col}</td>
-      <td><span class="code-chip">${escHtml(f.masked_value||'****')}</span></td>
+      <td><span class="code-chip" style="color:#ef4444;font-weight:600">${escHtml(f.secret_value||f.masked_value||'****')}</span></td>
       <td>${scoreBar(f.score)}</td>
     </tr>
     <tr class="expandable-row" id="expand-${globalI}">
       <td class="expand-cell" colspan="6">
-        <div><strong style="color:var(--subtle)">Context:</strong> <code>${escHtml(f.context||'')}</code></div>
-        <div style="margin-top:.3rem"><strong style="color:var(--subtle)">Full path:</strong> <span style="color:#a5b4fc">${escHtml(f.file||'')}</span></div>
+        <div><strong style="color:var(--subtle)">Exposed Secret:</strong> <code style="color:#ef4444;word-break:break-all">${escHtml(f.secret_value||f.masked_value||'')}</code></div>
+        <div style="margin-top:.3rem"><strong style="color:var(--subtle)">File Location:</strong> <span style="color:#a5b4fc">${escHtml(f.file||'')} : Line ${f.line}, Col ${f.col}</span></div>
+        <div style="margin-top:.3rem"><strong style="color:var(--subtle)">Context:</strong> <code>${escHtml(f.context||'')}</code></div>
         <div style="margin-top:.3rem"><strong style="color:var(--subtle)">Fingerprint:</strong> <code id="fp-${globalI}">${escHtml(f.fingerprint||'')}</code></div>
         ${f.commit_date ? `<div style="margin-top:.3rem"><strong style="color:var(--subtle)">Commit date:</strong> <span style="color:var(--muted)">${escHtml(f.commit_date)}</span></div>` : ''}
         ${f.commit_message ? `<div style="margin-top:.3rem"><strong style="color:var(--subtle)">Commit message:</strong> <span style="color:var(--muted)">${escHtml(f.commit_message)}</span></div>` : ''}
         <div class="expand-actions">
+          <button class="btn btn-ghost btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="event.stopPropagation();copySecret(${globalI})">
+            <i class="fa-solid fa-key"></i> Copy Raw Key
+          </button>
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();copyFP(${globalI})">
             <i class="fa-solid fa-copy"></i> Copy Fingerprint
           </button>
@@ -1675,6 +1679,13 @@ function toggleExpand(i) {
   }
   if (!isOpen) { row.classList.add('open'); expandedRow = i; }
   else expandedRow = null;
+}
+
+function copySecret(i) {
+  const f = filteredRows[i];
+  if (!f) return;
+  const sec = f.secret_value || f.masked_value || '';
+  navigator.clipboard.writeText(sec).then(() => toast('Raw key copied to clipboard!', 'success', 2500)).catch(() => toast('Copy failed', 'error'));
 }
 
 function copyFP(i) {
@@ -2228,9 +2239,9 @@ function exportJSON() {
 function exportCSV() {
   if (!allFindings.length) { toast('Nothing to export.','warn'); return; }
   const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
-  let csv = 'Severity,Rule,Type,File,Line,Col,Score,MaskedSecret,Fingerprint,CommitHash\n';
+  let csv = 'Severity,Rule,Type,File,Line,Col,Score,ExposedSecret,Fingerprint,CommitHash\n';
   allFindings.forEach(f => {
-    csv += [f.severity,f.rule_name,f.type,f.file,f.line,f.col,f.score,f.masked_value,f.fingerprint,f.commit_hash||''].map(escape).join(',') + '\n';
+    csv += [f.severity,f.rule_name,f.type,f.file,f.line,f.col,f.score,f.secret_value||f.masked_value,f.fingerprint,f.commit_hash||''].map(escape).join(',') + '\n';
   });
   downloadBlob(csv, 'secret_scan.csv', 'text/csv');
   toast('Exported CSV', 'success');
@@ -2354,7 +2365,7 @@ function loadDiff() {
         <td>${escHtml(f.rule_name||f.type)}</td>
         <td><span class="file-chip" title="${escHtml(f.file)}">${escHtml(fname)}</span></td>
         <td style="color:var(--subtle)">L${f.line}</td>
-        <td><span class="code-chip">${escHtml(f.masked_value||'****')}</span></td>
+        <td><span class="code-chip" style="color:#ef4444">${escHtml(f.secret_value||f.masked_value||'****')}</span></td>
       </tr>`;
   }).join('');
 
@@ -2857,7 +2868,8 @@ function openFindingModal(i) {
     ['Risk Score', scoreBar(f.score)],
     ['File', escHtml(f.file || '')],
     ['Location', `Line ${f.line}, Column ${f.col}`],
-    ['Masked Value', `<span class="code-chip">${escHtml(f.masked_value || '****')}</span>`],
+    ['Exposed Secret', `<span class="code-chip" style="color:#ef4444;font-weight:600">${escHtml(f.secret_value || f.masked_value || '****')}</span>`],
+    ['File Location', `<span style="color:#a5b4fc">${escHtml(f.file || '')} : Line ${f.line}, Col ${f.col}</span>`],
     ['Fingerprint', `<code>${escHtml(f.fingerprint || '')}</code>`],
     ['Context', f.context ? `<code>${escHtml(f.context)}</code>` : '—'],
   ];

@@ -104,7 +104,7 @@ HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
             <th>Type / Rule</th>
             <th>File Location</th>
             <th>Line : Col</th>
-            <th>Masked Secret</th>
+            <th>Exposed Secret</th>
             <th>Code Context / Commit</th>
           </tr>
         </thead>
@@ -149,7 +149,7 @@ def generate_html_report(findings: list[dict[str, Any]], target_path: str = ".")
             rule_name = html.escape(str(f.get("rule_name") or f.get("type", "Unknown")))
             file_loc = html.escape(str(f.get("file", "<unknown>")))
             line_col = f"L{f.get('line', 1)} : C{f.get('col', 1)}"
-            masked = html.escape(str(f.get("masked_value") or ""))
+            secret_val = html.escape(str(f.get("secret_value") or f.get("masked_value") or ""))
             context = html.escape(str(f.get("context") or ""))
             
             commit_meta = ""
@@ -162,7 +162,7 @@ def generate_html_report(findings: list[dict[str, Any]], target_path: str = ".")
                 <td><strong>{rule_name}</strong><br><span style="color: #64748b; font-size: 0.75rem;"><code>{html.escape(str(f.get("type", "")))}</code></span></td>
                 <td><code>{file_loc}</code></td>
                 <td>{line_col}</td>
-                <td><code>{masked}</code></td>
+                <td><code style="color:#ef4444;">{secret_val}</code></td>
                 <td><div class="context-box">{context}</div>{commit_meta}</td>
               </tr>
             """)
@@ -193,7 +193,7 @@ def generate_markdown_report(findings: list[dict[str, Any]], target_path: str = 
         "",
         "## Findings Summary",
         "",
-        "| Severity | Rule / Type | File Location | Line:Col | Masked Secret | Context / Commit |",
+        "| Severity | Rule / Type | File Location | Line:Col | Exposed Secret | Context / Commit |",
         "| :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
 
@@ -203,19 +203,19 @@ def generate_markdown_report(findings: list[dict[str, Any]], target_path: str = 
         for f in findings:
             sev = f.get("severity", "MEDIUM").upper()
             sev_icon = (
-                "🟣 **CRITICAL**" if sev == "CRITICAL"
-                else "🔴 **HIGH**" if sev == "HIGH"
-                else "🟡 **MEDIUM**" if sev == "MEDIUM"
-                else "🔵 **LOW**"
+                "\U0001f7e3 **CRITICAL**" if sev == "CRITICAL"
+                else "\U0001f534 **HIGH**" if sev == "HIGH"
+                else "\U0001f7e1 **MEDIUM**" if sev == "MEDIUM"
+                else "\U0001f535 **LOW**"
             )
             rule_name = f.get("rule_name") or f.get("type")
             file_loc = f.get("file", "")
             loc = f"L{f.get('line', 1)}:C{f.get('col', 1)}"
-            masked = f"`{f.get('masked_value', '')}`"
+            secret_val = f"`{f.get('secret_value', f.get('masked_value', ''))}`"
             context = f.get("context", "").replace("|", "\\|")
             if "commit_hash" in f:
                 context += f" (Commit: `{f['commit_hash']}`)"
-            md.append(f"| {sev_icon} | `{rule_name}` | `{file_loc}` | {loc} | {masked} | `{context}` |")
+            md.append(f"| {sev_icon} | `{rule_name}` | `{file_loc}` | {loc} | {secret_val} | `{context}` |")
 
     return "\n".join(md)
 
@@ -252,7 +252,7 @@ def generate_sarif_report(findings: list[dict[str, Any]], target_path: str = "."
             "ruleId": rule_id,
             "level": level,
             "message": {
-                "text": f"Detected potential {rule_name}: {f.get('masked_value', '')}"
+                "text": f"Detected potential {rule_name}: {f.get('secret_value', f.get('masked_value', ''))}"
             },
             "locations": [
                 {

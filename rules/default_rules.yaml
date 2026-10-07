@@ -263,9 +263,9 @@ rules:
 
   - id: vault_token
     name: "HashiCorp Vault Token"
-    pattern: "(?:hvs\\.|s\\.)[A-Za-z0-9\\-_.]{20,}"
+    pattern: "\\b(?:hvs\\.[A-Za-z0-9_-]{24,}|hvb\\.[A-Za-z0-9_-]{24,}|hvr\\.[A-Za-z0-9_-]{24,}|s\\.[A-Za-z0-9]{24,32})\\b"
     severity: "HIGH"
-    description: "Matches HashiCorp Vault tokens (service and batch)."
+    description: "Matches HashiCorp Vault tokens (service, batch, recovery, and legacy root)."
 
   - id: private_key
     name: "RSA/OPENSSH/EC Private Key"
@@ -370,3 +370,503 @@ rules:
     pattern: "(?i)(?:elasticsearch[_-]?password|es[_-]?password)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-\\.~]{8,})['\"]?"
     severity: "HIGH"
     description: "Matches Elasticsearch password assignments."
+
+  # ── Additional Cloud & SaaS Services ────────────────────────────────────
+
+  - id: supabase_key
+    name: "Supabase API Key"
+    pattern: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\\.[A-Za-z0-9_-]{30,}\\.[A-Za-z0-9_-]{20,}"
+    severity: "HIGH"
+    description: "Matches Supabase anon/service role JWT keys."
+
+  - id: supabase_service_role
+    name: "Supabase Service Role Key"
+    pattern: "(?i)(?:supabase[_-]?service[_-]?role|SUPABASE_SERVICE_ROLE_KEY)\\s*[=:]\\s*['\"]?(eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+)['\"]?"
+    severity: "CRITICAL"
+    description: "Matches Supabase service role key assignments which grant admin access."
+
+  - id: firebase_api_key
+    name: "Firebase API Key"
+    pattern: "(?i)(?:firebase[_-]?api[_-]?key|FIREBASE_API_KEY)\\s*[=:]\\s*['\"]?(AIza[0-9A-Za-z\\-_]{35})['\"]?"
+    severity: "HIGH"
+    description: "Matches Firebase API key assignments."
+
+  - id: firebase_auth_domain
+    name: "Firebase Config with Credentials"
+    pattern: "(?i)(?:apiKey|authDomain|databaseURL|storageBucket)\\s*[=:]\\s*['\"]([^'\"\\s]{10,})['\"]"
+    severity: "MEDIUM"
+    description: "Matches Firebase config object credentials."
+
+  - id: shopify_token
+    name: "Shopify Access Token"
+    pattern: "shpat_[a-fA-F0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Shopify Admin API access tokens."
+
+  - id: shopify_shared_secret
+    name: "Shopify Shared Secret"
+    pattern: "shpss_[a-fA-F0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Shopify shared secrets."
+
+  - id: shopify_custom_app
+    name: "Shopify Custom App Token"
+    pattern: "shpca_[a-fA-F0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Shopify custom app access tokens."
+
+  - id: shopify_private_app
+    name: "Shopify Private App Password"
+    pattern: "shppa_[a-fA-F0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Shopify private app passwords."
+
+  - id: dockerhub_token
+    name: "Docker Hub Access Token"
+    pattern: "dckr_pat_[A-Za-z0-9_-]{27,}"
+    severity: "HIGH"
+    description: "Matches Docker Hub personal access tokens."
+
+  - id: atlassian_api_token
+    name: "Atlassian / Jira API Token"
+    pattern: "(?i)(?:atlassian|jira|confluence)[_-]?(?:api[_-]?)?token\\s*[=:]\\s*['\"]?([A-Za-z0-9]{24,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Atlassian/Jira/Confluence API token assignments."
+
+  - id: bitbucket_app_password
+    name: "Bitbucket App Password"
+    pattern: "(?i)bitbucket[_-]?(?:app[_-]?)?password\\s*[=:]\\s*['\"]?([A-Za-z0-9]{18,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Bitbucket App Password assignments."
+
+  - id: datadog_api_key
+    name: "Datadog API Key"
+    pattern: "(?i)(?:datadog|dd)[_-]?api[_-]?key\\s*[=:]\\s*['\"]?([a-f0-9]{32})['\"]?"
+    severity: "HIGH"
+    description: "Matches Datadog API key assignments."
+
+  - id: datadog_app_key
+    name: "Datadog Application Key"
+    pattern: "(?i)(?:datadog|dd)[_-]?app(?:lication)?[_-]?key\\s*[=:]\\s*['\"]?([a-f0-9]{40})['\"]?"
+    severity: "HIGH"
+    description: "Matches Datadog Application key assignments."
+
+  - id: newrelic_key
+    name: "New Relic API Key"
+    pattern: "NRAK-[A-Z0-9]{27}"
+    severity: "HIGH"
+    description: "Matches New Relic API keys."
+
+  - id: newrelic_license
+    name: "New Relic License Key"
+    pattern: "(?i)new[_-]?relic[_-]?license[_-]?key\\s*[=:]\\s*['\"]?([a-f0-9]{40})['\"]?"
+    severity: "HIGH"
+    description: "Matches New Relic license key assignments."
+
+  - id: sentry_dsn
+    name: "Sentry DSN"
+    pattern: "https://[a-f0-9]{32}@(?:o\\d+\\.ingest\\.)?sentry\\.io/\\d+"
+    severity: "MEDIUM"
+    description: "Matches Sentry DSN connection strings."
+
+  - id: sentry_auth_token
+    name: "Sentry Auth Token"
+    pattern: "sntrys_[A-Za-z0-9_-]{38,}"
+    severity: "HIGH"
+    description: "Matches Sentry authentication tokens."
+
+  - id: pagerduty_key
+    name: "PagerDuty API Key"
+    pattern: "(?i)pagerduty[_-]?(?:api[_-]?)?key\\s*[=:]\\s*['\"]?([A-Za-z0-9+/]{20,})['\"]?"
+    severity: "HIGH"
+    description: "Matches PagerDuty API key assignments."
+
+  - id: launchdarkly_key
+    name: "LaunchDarkly SDK Key"
+    pattern: "sdk-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+    severity: "HIGH"
+    description: "Matches LaunchDarkly SDK keys."
+
+  - id: airtable_key
+    name: "Airtable API Key"
+    pattern: "(?:key|pat)[A-Za-z0-9]{14,17}"
+    severity: "HIGH"
+    description: "Matches Airtable API keys and personal access tokens."
+
+  - id: notion_token
+    name: "Notion Integration Token"
+    pattern: "(?:ntn_|secret_)[A-Za-z0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Notion internal integration tokens."
+
+  - id: algolia_api_key
+    name: "Algolia Admin API Key"
+    pattern: "(?i)algolia[_-]?(?:admin[_-]?)?(?:api[_-]?)?key\\s*[=:]\\s*['\"]?([a-f0-9]{32})['\"]?"
+    severity: "HIGH"
+    description: "Matches Algolia admin API key assignments."
+
+  - id: mapbox_token
+    name: "Mapbox Access Token"
+    pattern: "pk\\.[A-Za-z0-9]{60,}"
+    severity: "MEDIUM"
+    description: "Matches Mapbox public access tokens."
+
+  - id: mapbox_secret
+    name: "Mapbox Secret Token"
+    pattern: "sk\\.[A-Za-z0-9]{60,}"
+    severity: "HIGH"
+    description: "Matches Mapbox secret access tokens."
+
+  - id: circleci_token
+    name: "CircleCI API Token"
+    pattern: "(?i)circle[_-]?(?:ci[_-]?)?token\\s*[=:]\\s*['\"]?([a-f0-9]{40})['\"]?"
+    severity: "HIGH"
+    description: "Matches CircleCI personal API token assignments."
+
+  - id: travis_token
+    name: "Travis CI Token"
+    pattern: "(?i)travis[_-]?(?:ci[_-]?)?token\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{22,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Travis CI API token assignments."
+
+  - id: azure_devops_pat
+    name: "Azure DevOps PAT"
+    pattern: "(?i)(?:azure[_-]?devops|vsts)[_-]?(?:pat|token)\\s*[=:]\\s*['\"]?([A-Za-z0-9]{52,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Azure DevOps Personal Access Token assignments."
+
+  - id: okta_api_token
+    name: "Okta API Token"
+    pattern: "(?i)(?:okta[_-]?)?(?:api[_-]?)?token\\s*[=:]\\s*['\"]?(00[A-Za-z0-9_-]{40})['\"]?"
+    severity: "HIGH"
+    description: "Matches Okta API token assignments (starts with 00)."
+
+  - id: auth0_client_secret
+    name: "Auth0 Client Secret"
+    pattern: "(?i)auth0[_-]?client[_-]?secret\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{32,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Auth0 client secret variable assignments."
+
+  - id: contentful_token
+    name: "Contentful Delivery/Management Token"
+    pattern: "(?:CFPAT-[A-Za-z0-9_-]{43,})"
+    severity: "HIGH"
+    description: "Matches Contentful Personal Access Tokens."
+
+  - id: planetscale_token
+    name: "PlanetScale API Token"
+    pattern: "pscale_tkn_[A-Za-z0-9_-]{32,}"
+    severity: "HIGH"
+    description: "Matches PlanetScale API tokens."
+
+  - id: planetscale_password
+    name: "PlanetScale DB Password"
+    pattern: "pscale_pw_[A-Za-z0-9_-]{32,}"
+    severity: "CRITICAL"
+    description: "Matches PlanetScale database branch passwords."
+
+  - id: neon_api_key
+    name: "Neon Database API Key"
+    pattern: "neon_[a-z0-9_]{32,}"
+    severity: "HIGH"
+    description: "Matches Neon serverless Postgres API keys."
+
+  - id: upstash_redis_token
+    name: "Upstash Redis Token"
+    pattern: "(?i)upstash[_-]?redis[_-]?(?:rest[_-]?)?token\\s*[=:]\\s*['\"]?([A-Za-z0-9=]{30,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Upstash Redis REST token assignments."
+
+  - id: grafana_api_key
+    name: "Grafana API Key"
+    pattern: "(?:glsa_|eyJr)[A-Za-z0-9_-]{32,}"
+    severity: "HIGH"
+    description: "Matches Grafana service account tokens and legacy API keys."
+
+  - id: grafana_cloud_token
+    name: "Grafana Cloud API Token"
+    pattern: "glc_[A-Za-z0-9_-]{32,}"
+    severity: "HIGH"
+    description: "Matches Grafana Cloud API tokens."
+
+  - id: linear_api_key
+    name: "Linear API Key"
+    pattern: "lin_api_[A-Za-z0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Linear API keys."
+
+  - id: livekit_key
+    name: "LiveKit API Key"
+    pattern: "API[A-Za-z0-9]{12,}"
+    severity: "HIGH"
+    description: "Matches LiveKit API key identifiers."
+
+  - id: pusher_key
+    name: "Pusher App Key"
+    pattern: "(?i)pusher[_-]?(?:app[_-]?)?(?:key|secret)\\s*[=:]\\s*['\"]?([a-f0-9]{20,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Pusher Channels app key/secret assignments."
+
+  - id: onesignal_key
+    name: "OneSignal REST API Key"
+    pattern: "(?i)onesignal[_-]?(?:rest[_-]?)?(?:api[_-]?)?key\\s*[=:]\\s*['\"]?([A-Za-z0-9]{48})['\"]?"
+    severity: "HIGH"
+    description: "Matches OneSignal REST API key assignments."
+
+  - id: braintree_token
+    name: "Braintree Access Token"
+    pattern: "access_token\\$(?:production|sandbox)\\$[a-z0-9]{16}\\$[a-f0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Braintree access tokens."
+
+  - id: square_access_token
+    name: "Square Access Token"
+    pattern: "sq0atp-[A-Za-z0-9_-]{22,}"
+    severity: "HIGH"
+    description: "Matches Square (Block) API access tokens."
+
+  - id: square_oauth_secret
+    name: "Square OAuth Secret"
+    pattern: "sq0csp-[A-Za-z0-9_-]{43,}"
+    severity: "HIGH"
+    description: "Matches Square OAuth application secrets."
+
+  - id: coinbase_api_key
+    name: "Coinbase API Key"
+    pattern: "(?i)(?:coinbase|cb)[_-]?api[_-]?(?:key|secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Coinbase API key/secret assignments."
+
+  - id: plaid_key
+    name: "Plaid Client ID / Secret"
+    pattern: "(?i)plaid[_-]?(?:client[_-]?id|secret)\\s*[=:]\\s*['\"]?([a-f0-9]{24,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Plaid client ID and secret assignments."
+
+  - id: mixpanel_token
+    name: "Mixpanel Project Token"
+    pattern: "(?i)mixpanel[_-]?(?:project[_-]?)?token\\s*[=:]\\s*['\"]?([a-f0-9]{32})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches Mixpanel project token assignments."
+
+  - id: segment_write_key
+    name: "Segment Write Key"
+    parameter: "(?i)segment[_-]?write[_-]?key\\s*[=:]\\s*['\"]?([A-Za-z0-9]{22,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Segment analytics write key assignments."
+
+  - id: amplitude_api_key
+    name: "Amplitude API Key"
+    pattern: "(?i)amplitude[_-]?(?:api[_-]?)?key\\s*[=:]\\s*['\"]?([a-f0-9]{32})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches Amplitude analytics API key assignments."
+
+  - id: postman_api_key
+    name: "Postman API Key"
+    pattern: "PMAK-[A-Za-z0-9]{24}-[a-f0-9]{34}"
+    severity: "HIGH"
+    description: "Matches Postman API keys."
+
+  - id: rapidapi_key
+    name: "RapidAPI Key"
+    pattern: "(?i)(?:rapidapi|x-rapidapi)[_-]?key\\s*[=:]\\s*['\"]?([A-Za-z0-9]{32,})['\"]?"
+    severity: "HIGH"
+    description: "Matches RapidAPI key assignments."
+
+  - id: figma_token
+    name: "Figma Personal Access Token"
+    pattern: "figd_[A-Za-z0-9_-]{40,}"
+    severity: "HIGH"
+    description: "Matches Figma personal access tokens."
+
+  - id: zoom_jwt_token
+    name: "Zoom JWT Token"
+    pattern: "(?i)zoom[_-]?(?:jwt[_-]?)?(?:token|secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{20,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Zoom JWT/OAuth token assignments."
+
+  - id: asana_token
+    name: "Asana Personal Access Token"
+    pattern: "(?i)asana[_-]?(?:personal[_-]?)?(?:access[_-]?)?token\\s*[=:]\\s*['\"]?(\\d/\\d{16,}:[a-f0-9]{32,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Asana personal access tokens."
+
+  - id: clickup_token
+    name: "ClickUp API Token"
+    pattern: "pk_[0-9]{7,}_[A-Z0-9]{32,}"
+    severity: "HIGH"
+    description: "Matches ClickUp personal API tokens."
+
+  # ── Cryptocurrency / Blockchain ────────────────────────────────────────
+
+  - id: ethereum_private_key
+    name: "Ethereum / EVM Private Key"
+    pattern: "(?i)(?:private[_-]?key|eth[_-]?private)\\s*[=:]\\s*['\"]?(0x[a-fA-F0-9]{64})['\"]?"
+    severity: "CRITICAL"
+    description: "Matches Ethereum/EVM chain private keys (256-bit hex with 0x prefix)."
+
+  - id: bitcoin_wif
+    name: "Bitcoin WIF Private Key"
+    pattern: "5[HJK][1-9A-HJ-NP-Za-km-z]{49}"
+    severity: "CRITICAL"
+    description: "Matches Bitcoin Wallet Import Format (WIF) uncompressed private keys."
+
+  # ── Container & Registry ───────────────────────────────────────────────
+
+  - id: ghcr_token
+    name: "GitHub Container Registry Token"
+    pattern: "ghp_[A-Za-z0-9_]{36,}"
+    severity: "HIGH"
+    description: "Matches GitHub personal access tokens used for container registry auth."
+
+  - id: docker_config_auth
+    name: "Docker Registry Auth"
+    pattern: "(?i)\\\"auth\\\":\\s*\\\"([A-Za-z0-9+/=]{20,})\\\""
+    severity: "HIGH"
+    description: "Matches base64-encoded credentials in Docker config.json auth fields."
+
+  # ── Additional Generic Patterns ────────────────────────────────────────
+
+  - id: env_secret_assignment
+    name: "Environment Secret in .env File"
+    pattern: "(?i)(?:SECRET|TOKEN|PASSWORD|APIKEY|API_KEY|AUTH|CREDENTIAL|ACCESS_KEY)[A-Z_]*\\s*=\\s*['\"]?([A-Za-z0-9_\\-\\.~+/=]{16,})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches secret-like variable assignments commonly found in .env files."
+
+  - id: high_entropy_hex_token
+    name: "High-Entropy Hex Token"
+    pattern: "(?i)(?:token|secret|key|auth|credential|api_key)\\s*[=:]\\s*['\"]?([a-f0-9]{40,})['\"]?"
+    severity: "MEDIUM"
+    description: "Matches long hex strings assigned to security-sensitive variable names."
+
+  - id: connection_string_generic
+    name: "Generic Connection String"
+    pattern: "(?i)(?:connection[_-]?string|conn[_-]?str)\\s*[=:]\\s*['\"]([^'\"]{20,})['\"]"
+    severity: "HIGH"
+    description: "Matches generic connection string assignments that may contain credentials."
+
+  - id: smtp_credentials
+    name: "SMTP Credentials"
+    pattern: "(?i)(?:smtp[_-]?password|smtp[_-]?pass|mail[_-]?password|email[_-]?password)\\s*[=:]\\s*['\"]?([^'\"\\s]{6,})['\"]?"
+    severity: "HIGH"
+    description: "Matches SMTP/mail password assignments."
+
+  - id: twitch_token
+    name: "Twitch OAuth Token"
+    pattern: "(?i)(?:twitch[_-]?)?oauth[_-]?token\\s*[=:]\\s*['\"]?([a-z0-9]{30,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Twitch OAuth token assignments."
+
+  - id: facebook_token
+    name: "Facebook / Meta Access Token"
+    pattern: "EAA[A-Za-z0-9]{100,}"
+    severity: "HIGH"
+    description: "Matches Facebook/Meta Graph API access tokens."
+
+  - id: twitter_bearer
+    name: "Twitter / X API Bearer Token"
+    pattern: "AAAAAAAAAAAAAAAAAAA[A-Za-z0-9%]{20,}"
+    severity: "HIGH"
+    description: "Matches Twitter/X API v2 bearer tokens."
+
+  - id: twitter_api_key
+    name: "Twitter / X API Key"
+    pattern: "(?i)(?:twitter|tw)[_-]?(?:api[_-]?)?(?:key|secret|consumer)\\s*[=:]\\s*['\"]?([A-Za-z0-9]{25,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Twitter/X API key and secret assignments."
+
+  - id: instagram_token
+    name: "Instagram Access Token"
+    pattern: "IGQV[A-Za-z0-9_-]{50,}"
+    severity: "HIGH"
+    description: "Matches Instagram Graph API access tokens."
+
+  - id: linkedin_token
+    name: "LinkedIn Access Token"
+    pattern: "(?i)linkedin[_-]?(?:access[_-]?)?token\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{20,})['\"]?"
+    severity: "HIGH"
+    description: "Matches LinkedIn API access token assignments."
+
+  - id: dynatrace_token
+    name: "Dynatrace API Token"
+    pattern: "dt0c01\\.[A-Z0-9]{24}\\.[A-Z0-9]{64}"
+    severity: "HIGH"
+    description: "Matches Dynatrace API tokens."
+
+  - id: hashicorp_consul_token
+    name: "HashiCorp Consul Token"
+    pattern: "(?i)consul[_-]?(?:http[_-]?)?token\\s*[=:]\\s*['\"]?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})['\"]?"
+    severity: "HIGH"
+    description: "Matches HashiCorp Consul ACL token assignments."
+
+  - id: fastly_api_key
+    name: "Fastly API Token"
+    pattern: "(?i)fastly[_-]?(?:api[_-]?)?(?:key|token)\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{32,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Fastly API token assignments."
+
+  - id: age_secret_key
+    name: "age Encryption Secret Key"
+    pattern: "AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}"
+    severity: "CRITICAL"
+    description: "Matches age file encryption secret keys."
+
+  - id: doppler_cli_token
+    name: "Doppler CLI Token"
+    pattern: "dp\\.ct\\.[A-Za-z0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Doppler CLI authentication tokens."
+
+  - id: pulumi_access_token
+    name: "Pulumi Access Token"
+    pattern: "pul-[a-f0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Pulumi access tokens."
+
+  - id: prefect_api_key
+    name: "Prefect Cloud API Key"
+    pattern: "pnu_[A-Za-z0-9]{36,}"
+    severity: "HIGH"
+    description: "Matches Prefect Cloud API keys."
+
+  - id: confluent_cloud_key
+    name: "Confluent Cloud API Key"
+    pattern: "(?i)confluent[_-]?(?:cloud[_-]?)?(?:api[_-]?)?(?:key|secret)\\s*[=:]\\s*['\"]?([A-Za-z0-9+/]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Confluent Cloud (Kafka) API key/secret assignments."
+
+  - id: twilio_api_key_sid
+    name: "Twilio API Key SID"
+    pattern: "SK[a-f0-9]{32}"
+    severity: "HIGH"
+    description: "Matches Twilio API Key SIDs (standard keys)."
+
+  - id: messagebird_key
+    name: "MessageBird API Key"
+    pattern: "(?i)messagebird[_-]?(?:api[_-]?)?(?:key|token)\\s*[=:]\\s*['\"]?([A-Za-z0-9]{25,})['\"]?"
+    severity: "HIGH"
+    description: "Matches MessageBird API key assignments."
+
+  - id: vonage_key
+    name: "Vonage / Nexmo API Secret"
+    pattern: "(?i)(?:vonage|nexmo)[_-]?(?:api[_-]?)?secret\\s*[=:]\\s*['\"]?([A-Za-z0-9]{16,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Vonage/Nexmo API secret assignments."
+
+  - id: sidekiq_secret
+    name: "Sidekiq Enterprise License Key"
+    pattern: "(?i)sidekiq[_-]?(?:license|pro)[_-]?(?:key)?\\s*[=:]\\s*['\"]?([A-Za-z0-9_-]{20,})['\"]?"
+    severity: "HIGH"
+    description: "Matches Sidekiq Pro/Enterprise license key assignments."
+
+  - id: flutterwave_key
+    name: "Flutterwave Secret Key"
+    pattern: "FLWSECK-[a-f0-9]{32,}-X"
+    severity: "HIGH"
+    description: "Matches Flutterwave (Rave) secret API keys."
+
+  - id: paystack_secret
+    name: "Paystack Secret Key"
+    pattern: "sk_(?:live|test)_[a-f0-9]{40,}"
+    severity: "HIGH"
+    description: "Matches Paystack secret keys."
